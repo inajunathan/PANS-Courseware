@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 180" width="680" height="180" fill="none">
+  <!-- Brand Icon Lockup (Inspired by MIT OCW / Institutional Clean Mark) -->
+  <g transform="translate(24, 20)">
+    <!-- Outer shield / academic badge geometry -->
+    <rect x="0" y="0" width="140" height="140" rx="24" fill="#03152D"/>
+    
+    <!-- Accent subtle highlight corner -->
+    <path d="M 0 24 C 0 10.745 10.745 0 24 0 L 70 0 L 0 70 Z" fill="#126F9A" opacity="0.35"/>
+    
+    <!-- Geometric MIT OCW-inspired academic bars and Rx mortar/book fusion -->
+    <!-- Left vertical institutional pillar -->
+    <rect x="28" y="32" width="14" height="76" rx="4" fill="#126F9A"/>
+    
+    <!-- Center stepped pillar / academic progression -->
+    <rect x="50" y="46" width="14" height="62" rx="4" fill="#32C5FF"/>
+    
+    <!-- Right accent pillar (red / crimson CTA accent from OCW spec #A31F34) -->
+    <rect x="72" y="32" width="14" height="76" rx="4" fill="#A31F34"/>
+
+    <!-- Crossbar linking knowledge / synthesis bridge -->
+    <path d="M 28 62 L 112 62" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round"/>
+
+    <!-- Mortar / Beaker curve accentuating Pharmacy & Open Knowledge -->
+    <path d="M 50 82 Q 78 108 98 82" stroke="#FFFFFF" stroke-width="5" fill="none" stroke-linecap="round"/>
+    
+    <!-- Diamond spark / open-access knowledge star -->
+    <path d="M 98 42 L 104 48 L 98 54 L 92 48 Z" fill="#32C5FF"/>
+  </g>
+
+  <!-- Typography Wordmark -->
+  <!-- "PANS" Display Text in institutional Helvetica bold style -->
+  <text x="195" y="94" font-family="Helvetica, Arial, sans-serif" font-size="70" font-weight="800" fill="#03152D" letter-spacing="-1.5">PANS</text>
+  
+  <!-- Accent dot/slash in brand crimson #A31F34 -->
+  <rect x="398" y="44" width="12" height="48" rx="3" fill="#A31F34"/>
+
+  <!-- Subtitle "COURSEWARE" -->
+  <text x="198" y="132" font-family="Helvetica, Arial, sans-serif" font-size="21" font-weight="700" fill="#126F9A" letter-spacing="7">COURSEWARE</text>
+
+  <!-- Open Knowledge badge text / tagline -->
+  <text x="424" y="86" font-family="Helvetica, Arial, sans-serif" font-size="14" font-weight="600" fill="#9C9D9E" letter-spacing="1.5">OPENCOURSEWARE</text>
+</svg>
