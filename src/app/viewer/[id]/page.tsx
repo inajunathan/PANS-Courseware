@@ -126,13 +126,13 @@ export default async function IndividualPdfViewerPage({ params }: PageProps) {
     academicYear: '2025/2026',
     department: course.department,
     lecturer: unit.lecturer,
-    module: `Unit ${unit.unitNumber} Curriculum Module`,
+    module: `Unit ${unit.unitNumber} PDF & Slides Module`,
     totalPages: unit.totalPages || 28,
     fileSize: unit.fileSize || '8.4 MB',
     pdfUrl: 'https://raw.githubusercontent.com/mozilla/pdf.js/master/web/compressed.tracemonkey-pldi-09.pdf',
     returnUrl: `/courses/${course.id}`,
     chapterTitle: `Unit ${unit.unitNumber}: ${unit.title}`,
-    leadParagraph: `This official course document covers the syllabus learning objectives for ${course.code} Unit ${unit.unitNumber}, supervised by ${unit.lecturer}. It details reaction mechanisms, pharmacophore mappings, and exam synthesis criteria.`,
+    leadParagraph: `This official course document covers the learning objectives and slides for ${course.code} Unit ${unit.unitNumber}, supervised by ${unit.lecturer}. It details core principles, mechanisms, pharmacophore mappings, and exam criteria.`,
   };
 
   return <DocumentViewerWorkspace document={doc} />;

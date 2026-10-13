@@ -270,7 +270,7 @@ export default async function IndividualTutorialPage({ params }: PageProps) {
                     className="w-full inline-flex items-center justify-center gap-2 bg-[#FAF5FF] hover:bg-[#F3E8FF] text-[#6B21A8] text-xs sm:text-sm font-semibold px-4 py-3 rounded-xl transition-colors border border-[#E9D5FF]"
                   >
                     <BookOpen className="w-4 h-4" />
-                    <span>View Full Course Syllabus</span>
+                    <span>View Course PDF Files &amp; Slides</span>
                   </Link>
 
                   <Link

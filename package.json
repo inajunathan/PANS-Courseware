@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "upload:pq": "node scripts/upload_past_question.mjs",
+    "upload:course": "node scripts/upload_course_pdf.mjs",
+    "upload:slide": "node scripts/upload_slide.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.109.0",

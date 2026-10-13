@@ -10,7 +10,7 @@ export default function Loading() {
       <main className="flex-1 pt-28 flex flex-col items-center justify-center">
         <Loader2 className="w-10 h-10 animate-spin text-[#7C3AED] mb-3" />
         <p className="font-['Montserrat',sans-serif] font-bold text-slate-700">
-          Retrieving Course Syllabus from Academic Repository...
+          Retrieving Course PDF Files &amp; Slides from Academic Repository...
         </p>
       </main>
       <Footer />

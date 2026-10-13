@@ -350,7 +350,7 @@ export default function DocumentViewerWorkspace({ document }: DocumentViewerWork
               {/* Document Main Chapter Title Block */}
               <section className="mb-10">
                 <div className="inline-block px-3 py-1 rounded-full bg-[#F3E8FF] text-[#6B21A8] text-xs font-bold uppercase tracking-wider mb-3">
-                  {document.chapterTitle || 'Curriculum Syllabus Unit'}
+                  {document.chapterTitle || 'PDF Document & Slides Unit'}
                 </div>
                 <h2 className="font-['Montserrat',sans-serif] text-xl sm:text-2xl md:text-3xl font-extrabold text-[#0F172A] tracking-tight leading-snug mb-3">
                   {document.title}
@@ -360,7 +360,7 @@ export default function DocumentViewerWorkspace({ document }: DocumentViewerWork
                   <span className="hidden sm:inline">•</span>
                   <span><strong>Department:</strong> {document.department}</span>
                   <span className="hidden sm:inline">•</span>
-                  <span><strong>Module:</strong> {document.module || 'Undergraduate Curriculum'}</span>
+                  <span><strong>Module:</strong> {document.module || 'Undergraduate PDF & Slides'}</span>
                 </div>
               </section>
 

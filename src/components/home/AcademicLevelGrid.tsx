@@ -181,7 +181,7 @@ export default function AcademicLevelGrid() {
               Explore by Academic Level
             </h2>
             <p className="text-slate-600 text-sm sm:text-base mt-2">
-              Direct access to your semester curriculum, lecture archives, and practical syllabus.
+              Direct access to your semester PDF files &amp; slides, lecture archives, and study notes.
             </p>
           </div>
           <div className="mt-2 md:mt-0">

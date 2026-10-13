@@ -142,20 +142,12 @@ export default function CourseDetailsClient({
             {/* Action Widget */}
             <div className="flex flex-col sm:flex-row lg:flex-col gap-3 shrink-0 w-full sm:w-auto lg:w-64">
               <Link
-                href="/viewer"
-                className="w-full inline-flex items-center justify-center gap-2 bg-[#7c3aed] hover:bg-[#6B21A8] text-white text-sm font-semibold px-5 py-3 rounded-xl shadow-sm transition-all"
+                href={course.lectureUnits.length > 0 ? `/viewer/${course.lectureUnits[0].id}` : '/viewer'}
+                className="w-full inline-flex items-center justify-center gap-2 bg-[#7c3aed] hover:bg-[#6B21A8] text-white text-sm font-semibold px-5 py-3.5 rounded-xl shadow-xs hover:shadow-md transition-all"
               >
                 <Eye className="w-4 h-4" />
                 <span>Launch PDF Viewer</span>
               </Link>
-
-              <button
-                onClick={() => alert('Downloading official course syllabus package...')}
-                className="w-full inline-flex items-center justify-center gap-2 bg-[#eff4ff] hover:bg-[#F3E8FF] text-[#6B21A8] text-sm font-semibold px-5 py-3 rounded-xl transition-all border border-[#E9D5FF]"
-              >
-                <Download className="w-4 h-4" />
-                <span>Download Full Syllabus</span>
-              </button>
             </div>
           </div>
         </div>
@@ -170,8 +162,8 @@ export default function CourseDetailsClient({
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
-            <BookOpen className="w-4 h-4" />
-            <span>Curriculum Units ({course.lectureUnits.length})</span>
+            <FileText className="w-4 h-4" />
+            <span>PDF Files &amp; Slides ({course.lectureUnits.length})</span>
           </button>
 
           <button
@@ -199,7 +191,7 @@ export default function CourseDetailsClient({
           </button>
         </div>
 
-        {/* Tab Content 1: Curriculum Lecture Units */}
+        {/* Tab Content 1: PDF Files & Slides */}
         {activeTab === 'units' && (
           <div className="space-y-4">
             {course.lectureUnits.map((unit, index) => {
@@ -249,7 +241,7 @@ export default function CourseDetailsClient({
                               isActive ? 'text-emerald-300' : 'text-emerald-600'
                             }`}>
                               <FileCheck className="w-3.5 h-3.5" />
-                              <span>Verified Unit</span>
+                              <span>Verified PDF &amp; Slides</span>
                             </span>
                           </>
                         )}
@@ -267,7 +259,7 @@ export default function CourseDetailsClient({
                       }`}
                     >
                       <Eye className="w-3.5 h-3.5" />
-                      <span>Preview</span>
+                      <span>View PDF &amp; Slides</span>
                     </Link>
                     <button
                       onClick={() => alert(`Downloading ${unit.title}...`)}

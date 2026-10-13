@@ -14,8 +14,7 @@ import {
   Command, 
   Home,
   FileText,
-  Video,
-  Sparkles
+  Video
 } from 'lucide-react';
 import SearchModal from '@/components/search/SearchModal';
 
@@ -138,7 +137,9 @@ export default function Header() {
             {/* Desktop Navigation */}
             <nav className="hidden md:flex items-center gap-1">
               {navLinks.map((link) => {
-                const isActive = pathname === link.href;
+                const isActive = link.href === '/'
+                  ? pathname === '/'
+                  : pathname === link.href || pathname.startsWith(`${link.href}/`) || (link.href === '/courses' && pathname.startsWith('/viewer'));
                 return (
                   <Link
                     key={link.name}
@@ -237,14 +238,6 @@ export default function Header() {
           </button>
         </div>
 
-        {/* Portal Badge */}
-        <div className="px-4 py-3 bg-[#FAF5FF] border-b border-[#F3E8FF]/60">
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#F3E8FF] text-[#6B21A8] text-xs font-semibold w-fit">
-            <Sparkles className="w-3.5 h-3.5 text-[#7c3aed]" />
-            <span>Pharmacy Scholar Portal</span>
-          </div>
-        </div>
-
         {/* Drawer Nav Links */}
         <div className="flex-1 overflow-y-auto p-3 space-y-1">
           {/* Quick Search in Drawer */}
@@ -260,7 +253,9 @@ export default function Header() {
           </button>
 
           {navLinks.map((link) => {
-            const isActive = pathname === link.href;
+            const isActive = link.href === '/'
+              ? pathname === '/'
+              : pathname === link.href || pathname.startsWith(`${link.href}/`) || (link.href === '/courses' && pathname.startsWith('/viewer'));
             const Icon = link.icon;
             return (
               <Link

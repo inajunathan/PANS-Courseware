@@ -72,10 +72,10 @@ export default function FeaturedCoursesSection() {
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-10">
           <div>
             <h2 className="font-['Montserrat',sans-serif] text-2xl sm:text-3xl font-bold text-[#0F172A] tracking-tight">
-              Featured Course Syllabus & Lecture Notes
+              Featured PDF Files &amp; Slides
             </h2>
             <p className="text-slate-600 text-sm sm:text-base mt-1">
-              Aligned with College of Pharmacy syllabus and past examination papers.
+              Verified course lecture slides, study notes, and PDF handouts for pharmacy students.
             </p>
           </div>
           <Link
@@ -107,7 +107,7 @@ export default function FeaturedCoursesSection() {
                   if (!isMobile) setHoveredCourseId(null);
                 }}
                 onTouchStart={() => setHoveredCourseId(course.id)}
-                className={`border rounded-2xl p-6 flex flex-col justify-between transition-all duration-500 ease-out group ${
+                className={`relative border rounded-2xl p-6 flex flex-col justify-between transition-all duration-500 ease-out group ${
                   isMobile
                     ? isCardActive
                       ? 'bg-white border-[#C084FC] shadow-2xl scale-[1.03] z-10 ring-2 ring-[#C084FC]/40'
@@ -117,7 +117,14 @@ export default function FeaturedCoursesSection() {
                     : 'bg-[#f8f9ff] border-slate-200 hover:shadow-lg hover:border-[#C084FC]/60 hover:-translate-y-1'
                 }`}
               >
-                <div>
+                {/* Full Card Clickable Overlay */}
+                <Link
+                  href={`/courses/${course.code.toLowerCase().replace(/\s+/g, '-')}`}
+                  className="absolute inset-0 z-0 rounded-2xl"
+                  aria-label={`View ${course.code}: ${course.title}`}
+                />
+
+                <div className="relative z-10 pointer-events-none">
                   <div className="flex items-center justify-between gap-2 mb-3">
                     <span className="px-2.5 py-1 rounded-md bg-[#7c3aed] text-white text-xs font-bold font-['Montserrat',sans-serif]">
                       {course.code}
@@ -127,8 +134,10 @@ export default function FeaturedCoursesSection() {
                     </span>
                   </div>
 
-                  <h3 className="font-['Montserrat',sans-serif] text-base font-bold text-[#0F172A] group-hover:text-[#630ed4] transition-colors mb-2 line-clamp-1">
-                    {course.title}
+                  <h3 className="font-['Montserrat',sans-serif] text-base font-bold text-[#0F172A] group-hover:text-[#630ed4] transition-colors mb-2 line-clamp-1 pointer-events-auto">
+                    <Link href={`/courses/${course.code.toLowerCase().replace(/\s+/g, '-')}`} className="hover:underline">
+                      {course.title}
+                    </Link>
                   </h3>
                   <p className="text-xs sm:text-sm text-slate-600 line-clamp-2 mb-4 leading-relaxed">
                     {course.description}
@@ -146,7 +155,7 @@ export default function FeaturedCoursesSection() {
                   </div>
                 </div>
 
-                <div className="pt-4 border-t border-slate-200/80 flex items-center justify-between">
+                <div className="relative z-10 pt-4 border-t border-slate-200/80 flex items-center justify-between pointer-events-auto">
                   <div className="flex items-center gap-3 text-xs text-slate-500">
                     <span className="inline-flex items-center gap-1 font-medium">
                       <BookOpen className="w-3.5 h-3.5 text-slate-400" />
@@ -163,9 +172,9 @@ export default function FeaturedCoursesSection() {
                   </div>
 
                   <Link
-                    href={`/courses/${course.code.toLowerCase().replace(' ', '-')}`}
+                    href={`/courses/${course.code.toLowerCase().replace(/\s+/g, '-')}`}
                     className="p-2 rounded-lg bg-white group-hover:bg-[#7c3aed] text-slate-700 group-hover:text-white border border-slate-200 group-hover:border-[#7c3aed] transition-colors shadow-xs"
-                    title="View Course Details"
+                    title={`View ${course.code} Course Details`}
                   >
                     <ArrowRight className="w-4 h-4" />
                   </Link>

@@ -604,7 +604,9 @@ function CoursesContent() {
 
                     {/* Course Title */}
                     <h3 className="font-['Montserrat',sans-serif] text-base font-bold text-[#0F172A] group-hover:text-[#630ed4] transition-colors mb-2 line-clamp-1">
-                      {course.title}
+                      <Link href={`/courses/${course.code.toLowerCase().replace(/\s+/g, '-')}`} className="hover:underline">
+                        {course.title}
+                      </Link>
                     </h3>
 
                     {/* Description */}
@@ -642,22 +644,15 @@ function CoursesContent() {
                       </span>
                     </div>
 
-                    {/* Action Links (44px min-h touch targets) */}
-                    <div className="grid grid-cols-2 gap-2">
+                    {/* Action Link: View PDF Files & Slides (44px min-h touch target) */}
+                    <div>
                       <Link
-                        href={`/courses/${course.code.toLowerCase().replace(' ', '-')}`}
-                        className="w-full min-h-[44px] inline-flex items-center justify-center gap-1.5 text-xs font-semibold py-2.5 px-3 rounded-xl bg-[#eff4ff] hover:bg-[#F3E8FF] text-[#6B21A8] transition-colors"
+                        href={`/courses/${course.code.toLowerCase().replace(/\s+/g, '-')}`}
+                        className="w-full min-h-[44px] inline-flex items-center justify-center gap-2 text-xs sm:text-sm font-semibold py-2.5 px-4 rounded-xl bg-[#7c3aed] hover:bg-[#6B21A8] text-white shadow-xs transition-colors group/btn"
                       >
-                        <span>Syllabus</span>
-                        <ArrowRight className="w-3.5 h-3.5" />
-                      </Link>
-
-                      <Link
-                        href="/viewer"
-                        className="w-full min-h-[44px] inline-flex items-center justify-center gap-1.5 text-xs font-semibold py-2.5 px-3 rounded-xl bg-[#7c3aed] hover:bg-[#6B21A8] text-white shadow-xs transition-colors"
-                      >
-                        <BookOpen className="w-3.5 h-3.5" />
-                        <span>Read PDF</span>
+                        <FileText className="w-4 h-4 text-purple-200" />
+                        <span>View PDF Files &amp; Slides</span>
+                        <ArrowRight className="w-3.5 h-3.5 transform group-hover/btn:translate-x-1 transition-transform" />
                       </Link>
                     </div>
                   </div>

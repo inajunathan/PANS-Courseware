@@ -37,6 +37,8 @@ export interface Course {
   pdfCount: number;
   pqCount: number;
   tutorialCount: number;
+  pdfUrl?: string;
+  pdf_storage_url?: string;
   lectureUnits: LectureUnit[];
 }
 

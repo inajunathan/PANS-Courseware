@@ -1,6 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
-import { GraduationCap, ShieldCheck, Heart, ExternalLink } from 'lucide-react';
+import { GraduationCap, ShieldCheck, ExternalLink } from 'lucide-react';
 
 export default function Footer() {
   return (
@@ -25,6 +25,16 @@ export default function Footer() {
             <p className="text-slate-300 text-sm leading-relaxed max-w-sm">
               The centralized academic courseware and examination archive for pharmacy students. Maintained by the PANS Academic Committee.
             </p>
+            <div className="flex items-center gap-3 pt-1">
+              <span className="text-sm font-medium text-slate-300">
+                The Dominium Era Administration
+              </span>
+              <img
+                src="/assets/dominium-era-logo.png"
+                alt="The Dominium Era Logo"
+                className="h-7 w-auto object-contain opacity-95 hover:opacity-100 transition-opacity"
+              />
+            </div>
           </div>
 
           {/* Academic Levels Column */}
@@ -65,19 +75,22 @@ export default function Footer() {
               <li><Link href="/past-questions" className="hover:text-[#C084FC] transition-colors">Past Questions Vault</Link></li>
               <li><Link href="/tutorials" className="hover:text-[#C084FC] transition-colors">Student Video Tutorials</Link></li>
               <li><Link href="/viewer" className="hover:text-[#C084FC] transition-colors">PDF Reader & Viewer</Link></li>
-              <li><Link href="/courses?semester=First" className="hover:text-[#C084FC] transition-colors">First Semester Syllabus</Link></li>
-              <li><Link href="/courses?semester=Second" className="hover:text-[#C084FC] transition-colors">Second Semester Syllabus</Link></li>
+              <li><Link href="/courses?semester=First" className="hover:text-[#C084FC] transition-colors">First Semester PDF Files &amp; Slides</Link></li>
+              <li><Link href="/courses?semester=Second" className="hover:text-[#C084FC] transition-colors">Second Semester PDF Files &amp; Slides</Link></li>
             </ul>
           </div>
         </div>
 
         {/* Bottom Bar */}
         <div className="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-400">
-          <p>© {new Date().getFullYear()} PANS Courseware Hub. Built for Academic Excellence.</p>
-          <div className="flex items-center gap-2">
-            <span>Crafted with</span>
-            <Heart className="w-3.5 h-3.5 text-rose-500 fill-rose-500 inline" />
-            <span>by PANS Academic Committee</span>
+          <p>© {new Date().getFullYear()} PANS Courseware. Built for Academic Excellence.</p>
+          <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
+            <span>Maintained by the Academic Committee under the Dominium Era.</span>
+            <img
+              src="/assets/dominium-era-logo.png"
+              alt="The Dominium Era Logo"
+              className="h-6 sm:h-7 w-auto object-contain opacity-95 hover:opacity-100 transition-opacity inline-block"
+            />
           </div>
         </div>
       </div>

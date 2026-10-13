@@ -97,3 +97,63 @@ html, body {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* Premium headline text shimmer micro-animation with deep vibrant purple shade */
+@keyframes textShimmer {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.animate-text-shimmer {
+  background: linear-gradient(
+    90deg,
+    #7C3AED 0%,
+    #9333EA 25%,
+    #A855F7 50%,
+    #9333EA 75%,
+    #7C3AED 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: textShimmer 4s ease-in-out infinite;
+}
+
+/* Subtle bounce micro-interaction on hover for 'All in One Place.' */
+@keyframes subtleBounce {
+  0% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(-5px);
+  }
+  50% {
+    transform: translateY(1.5px);
+  }
+  70% {
+    transform: translateY(-2px);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+.hover-bounce-subtle {
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.25s ease;
+  display: inline-block;
+  cursor: pointer;
+}
+
+.hover-bounce-subtle:hover {
+  animation: subtleBounce 0.65s cubic-bezier(0.34, 1.56, 0.64, 1);
+  filter: drop-shadow(0 4px 14px rgba(168, 85, 247, 0.5));
+}
+

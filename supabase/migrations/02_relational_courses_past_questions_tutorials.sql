@@ -13,10 +13,22 @@ CREATE TABLE IF NOT EXISTS public.courses (
     course_code TEXT NOT NULL,
     course_title TEXT NOT NULL,
     department TEXT NOT NULL,
+    pdf_storage_url TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT uq_courses_course_code UNIQUE (course_code)
 );
+
+-- Ensure pdf_storage_url column exists if courses was previously created
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_schema = 'public' AND table_name = 'courses' AND column_name = 'pdf_storage_url'
+    ) THEN
+        ALTER TABLE public.courses ADD COLUMN pdf_storage_url TEXT;
+    END IF;
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_courses_course_code ON public.courses (course_code);
 CREATE INDEX IF NOT EXISTS idx_courses_department ON public.courses (department);
@@ -149,19 +161,48 @@ CREATE POLICY "Service role write access on tutorials"
     USING (true)
     WITH CHECK (true);
 
--- 7. Seed Data Insertion
--- Insert Master Courses
-INSERT INTO public.courses (id, course_code, course_title, department)
+-- 7. Setup Supabase Storage Bucket for Courses (Syllabus & Lecture Notes)
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+    'courses',
+    'courses',
+    true,
+    52428800, -- 50MB maximum per file
+    ARRAY['application/pdf']
+)
+ON CONFLICT (id) DO UPDATE 
+SET public = true,
+    file_size_limit = 52428800,
+    allowed_mime_types = ARRAY['application/pdf'];
+
+-- Storage RLS Policies: Allow public download/preview of Course PDFs
+DROP POLICY IF EXISTS "Public Access to Course PDFs" ON storage.objects;
+CREATE POLICY "Public Access to Course PDFs"
+    ON storage.objects
+    FOR SELECT
+    USING (bucket_id = 'courses');
+
+DROP POLICY IF EXISTS "Authenticated Users Can Upload Course PDFs" ON storage.objects;
+CREATE POLICY "Authenticated Users Can Upload Course PDFs"
+    ON storage.objects
+    FOR INSERT
+    TO authenticated
+    WITH CHECK (bucket_id = 'courses');
+
+-- 8. Seed Data Insertion
+-- Insert Master Courses with PDF Storage URLs
+INSERT INTO public.courses (id, course_code, course_title, department, pdf_storage_url)
 VALUES
-    ('11111111-1111-1111-1111-111111111101', 'MTH101', 'Elementary Mathematics I: Calculus & Algebra', 'Department of Mathematics'),
-    ('11111111-1111-1111-1111-111111111102', 'CHM101', 'General Physical & Inorganic Chemistry', 'Department of Chemistry'),
-    ('11111111-1111-1111-1111-111111111103', 'PCH401', 'Pharmaceutical Chemistry: SAR & Drug Design', 'Department of Pharmaceutical Chemistry'),
-    ('11111111-1111-1111-1111-111111111104', 'PCO401', 'Advanced Pharmacology: Chemotherapy & Autacoids', 'Department of Pharmacology & Therapeutics'),
-    ('11111111-1111-1111-1111-111111111105', 'PCT401', 'Biopharmaceutics & Applied Pharmacokinetics', 'Department of Pharmaceutics'),
-    ('11111111-1111-1111-1111-111111111106', 'PCG301', 'Pharmacognosy & Phytochemistry', 'Department of Pharmacognosy')
+    ('11111111-1111-1111-1111-111111111101', 'MTH101', 'Elementary Mathematics I: Calculus & Algebra', 'Department of Mathematics', 'https://raw.githubusercontent.com/mozilla/pdf.js/master/web/compressed.tracemonkey-pldi-09.pdf'),
+    ('11111111-1111-1111-1111-111111111102', 'CHM101', 'General Physical & Inorganic Chemistry', 'Department of Chemistry', 'https://raw.githubusercontent.com/mozilla/pdf.js/master/web/compressed.tracemonkey-pldi-09.pdf'),
+    ('11111111-1111-1111-1111-111111111103', 'PCH401', 'Pharmaceutical Chemistry: SAR & Drug Design', 'Department of Pharmaceutical Chemistry', 'https://raw.githubusercontent.com/mozilla/pdf.js/master/web/compressed.tracemonkey-pldi-09.pdf'),
+    ('11111111-1111-1111-1111-111111111104', 'PCO401', 'Advanced Pharmacology: Chemotherapy & Autacoids', 'Department of Pharmacology & Therapeutics', 'https://raw.githubusercontent.com/mozilla/pdf.js/master/web/compressed.tracemonkey-pldi-09.pdf'),
+    ('11111111-1111-1111-1111-111111111105', 'PCT401', 'Biopharmaceutics & Applied Pharmacokinetics', 'Department of Pharmaceutics', 'https://raw.githubusercontent.com/mozilla/pdf.js/master/web/compressed.tracemonkey-pldi-09.pdf'),
+    ('11111111-1111-1111-1111-111111111106', 'PCG301', 'Pharmacognosy & Phytochemistry', 'Department of Pharmacognosy', 'https://raw.githubusercontent.com/mozilla/pdf.js/master/web/compressed.tracemonkey-pldi-09.pdf')
 ON CONFLICT (course_code) DO UPDATE
 SET course_title = EXCLUDED.course_title,
-    department = EXCLUDED.department;
+    department = EXCLUDED.department,
+    pdf_storage_url = EXCLUDED.pdf_storage_url;
 
 -- Insert Past Questions linked via course_id
 INSERT INTO public.past_questions (

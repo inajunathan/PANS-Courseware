@@ -4,9 +4,10 @@ import Link from 'next/link';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import CourseDetailsClient from '@/components/courses/CourseDetailsClient';
-import { coursesData } from '@/data/coursesData';
+import { fetchCourseByCode } from '@/lib/coursesService';
 import { pastQuestionsData } from '@/data/pastQuestionsData';
 import { tutorialsData } from '@/data/tutorialsData';
+import { coursesData } from '@/data/coursesData';
 import { ArrowLeft, BookOpen } from 'lucide-react';
 
 /**
@@ -44,23 +45,17 @@ interface PageProps {
  */
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { courseCode } = await params;
-  const rawCode = (courseCode || '').toLowerCase();
-
-  const course = coursesData.find(
-    (c) =>
-      c.id.toLowerCase() === rawCode ||
-      c.code.toLowerCase().replace(/\s+/g, '-') === rawCode
-  );
+  const course = await fetchCourseByCode(courseCode);
 
   if (!course) {
     return {
       title: 'Course Not Found | PANS Courseware',
-      description: 'The requested pharmacy course syllabus could not be found.',
+      description: 'The requested pharmacy course record could not be found.',
     };
   }
 
   const title = `${course.code}: ${course.title} (${course.level}L) | PANS Courseware`;
-  const description = `Access verified syllabus, curriculum lecture units, past exam questions, and video tutorials for ${course.code} - ${course.title} at Faculty of Pharmacy.`;
+  const description = `Access verified PDF files & slides, past exam questions, and video tutorials for ${course.code} - ${course.title} at Faculty of Pharmacy.`;
 
   return {
     title,
@@ -75,13 +70,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function CourseDetailsPage({ params }: PageProps) {
   const { courseCode } = await params;
-  const rawCode = (courseCode || '').toLowerCase();
-
-  const course = coursesData.find(
-    (c) =>
-      c.id.toLowerCase() === rawCode ||
-      c.code.toLowerCase().replace(/\s+/g, '-') === rawCode
-  );
+  const course = await fetchCourseByCode(courseCode);
 
   if (!course) {
     return (
