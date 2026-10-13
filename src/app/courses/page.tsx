@@ -7,9 +7,11 @@ import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import StitchSearchBar from '@/components/search/StitchSearchBar';
 import { coursesData } from '@/data/coursesData';
+import { fetchAllCourses } from '@/lib/coursesService';
 import { Course } from '@/types';
-import { searchCourseware, UnifiedSearchRecord } from '@/lib/searchService';
+import { searchCourseware, UnifiedSearchRecord, updateSearchIndexWithCourses } from '@/lib/searchService';
 import { isAlgoliaConfigured } from '@/lib/algolia';
+import { isSupabaseConfigured } from '@/lib/supabase';
 import { 
   BookOpen, 
   FileText, 
@@ -92,9 +94,34 @@ function CoursesContent() {
     };
   }, [searchQuery, selectedLevel, selectedSemester, selectedSpec]);
 
+  const [courses, setCourses] = useState<Course[]>(coursesData);
+  const [loadingCourses, setLoadingCourses] = useState<boolean>(true);
+
+  // Dynamically load live courses from Supabase
+  useEffect(() => {
+    let isCurrent = true;
+    async function loadLiveCourses() {
+      try {
+        const live = await fetchAllCourses();
+        if (isCurrent && live && live.length > 0) {
+          setCourses(live);
+          updateSearchIndexWithCourses(live);
+        }
+      } catch (err) {
+        console.warn('Failed to load live courses from Supabase:', err);
+      } finally {
+        if (isCurrent) setLoadingCourses(false);
+      }
+    }
+    loadLiveCourses();
+    return () => {
+      isCurrent = false;
+    };
+  }, []);
+
   // Filtered courses
   const filteredCourses = useMemo(() => {
-    return coursesData.filter((course) => {
+    return courses.filter((course) => {
       // Level filter
       if (selectedLevel !== 'all' && course.level !== selectedLevel) {
         return false;
@@ -113,7 +140,7 @@ function CoursesContent() {
       }
       return true;
     });
-  }, [selectedLevel, selectedSemester, selectedSpec, matchedCourseIds]);
+  }, [courses, selectedLevel, selectedSemester, selectedSpec, matchedCourseIds]);
 
   const levelTabs = ['all', '100', '200', '300', '400', '500', '600'];
 
@@ -177,7 +204,7 @@ function CoursesContent() {
                 </div>
                 <div className="flex flex-col">
                   <span className="font-['Montserrat',sans-serif] font-bold text-lg text-[#0F172A] leading-tight">
-                    {coursesData.length}
+                    {courses.length}
                   </span>
                   <span className="text-xs text-slate-500 font-medium">Courses</span>
                 </div>

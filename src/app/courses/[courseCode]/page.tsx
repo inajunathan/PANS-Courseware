@@ -5,7 +5,7 @@ import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import CourseDetailsClient from '@/components/courses/CourseDetailsClient';
 import { fetchCourseByCode } from '@/lib/coursesService';
-import { pastQuestionsData } from '@/data/pastQuestionsData';
+import { fetchPastQuestionsByCourse } from '@/lib/pastQuestionsService';
 import { tutorialsData } from '@/data/tutorialsData';
 import { coursesData } from '@/data/coursesData';
 import { ArrowLeft, BookOpen } from 'lucide-react';
@@ -96,7 +96,7 @@ export default async function CourseDetailsPage({ params }: PageProps) {
     );
   }
 
-  const relatedPQs = pastQuestionsData.filter((pq) => pq.courseCode === course.code);
+  const relatedPQs = await fetchPastQuestionsByCourse(course.code);
   const relatedTutorials = tutorialsData.filter((t) => t.courseCode === course.code);
 
   return (

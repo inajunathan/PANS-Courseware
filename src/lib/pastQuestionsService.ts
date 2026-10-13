@@ -35,9 +35,9 @@ function normalizeLocalPq(pq: (typeof pastQuestionsData)[0]): DbPastQuestion {
     id: pq.id,
     course_code: pq.courseCode,
     course_title: pq.courseTitle,
-    academic_year: pq.session.replace(' Session', ''),
+    academic_year: pq.session.replace(' Session', '').trim(),
     department: 'College of Pharmacy',
-    pdf_storage_url: 'https://raw.githubusercontent.com/mozilla/pdf.js/master/web/compressed.tracemonkey-pldi-09.pdf',
+    pdf_storage_url: '/sample-past-question.pdf',
     exam_type: pq.examType,
     semester: pq.semester,
     has_verified_solutions: pq.hasVerifiedSolutions,
@@ -45,13 +45,41 @@ function normalizeLocalPq(pq: (typeof pastQuestionsData)[0]): DbPastQuestion {
     file_size: pq.fileSize,
     examiners: pq.examiners,
     download_count: pq.downloadCount,
-    created_at: new Date().toISOString()
+    created_at: new Date().toISOString(),
+  };
+}
+
+/**
+ * Normalizes a Supabase database row (with optional joined courses) to DbPastQuestion
+ */
+function normalizeDbRow(row: any): DbPastQuestion {
+  const course = Array.isArray(row.courses) ? row.courses[0] : row.courses;
+  const courseCode = row.course_code || course?.course_code || 'PCH 401';
+  const courseTitle = row.course_title || course?.course_title || `${courseCode} Examination Paper`;
+  const department = row.department || course?.department || 'College of Pharmacy';
+
+  return {
+    id: String(row.id),
+    course_code: courseCode,
+    course_title: courseTitle,
+    academic_year: row.academic_year || '2024/2025',
+    department: department,
+    pdf_storage_url: row.pdf_storage_url || '/sample-past-question.pdf',
+    exam_type: row.exam_type || 'Examination Paper',
+    semester: row.semester || 'First',
+    has_verified_solutions: row.has_verified_solutions ?? true,
+    total_pages: row.total_pages || 8,
+    file_size: row.file_size || '2.4 MB',
+    examiners: row.examiners || 'Departmental Examination Board',
+    download_count: row.download_count || 0,
+    created_at: row.created_at || new Date().toISOString(),
   };
 }
 
 /**
  * Fetches past questions dynamically from Supabase `past_questions` table,
- * with graceful fallback to local data if Supabase is unconfigured or returns empty.
+ * joined with `courses` table, with graceful fallback to local data if
+ * Supabase is unconfigured or not yet populated.
  */
 export async function fetchPastQuestions(
   filters: PastQuestionFilterOptions = {}
@@ -60,11 +88,32 @@ export async function fetchPastQuestions(
     try {
       let query = supabase
         .from('past_questions')
-        .select('*')
-        .order('academic_year', { ascending: false });
+        .select(`
+          id,
+          course_code,
+          course_title,
+          academic_year,
+          department,
+          pdf_storage_url,
+          exam_type,
+          semester,
+          has_verified_solutions,
+          total_pages,
+          file_size,
+          examiners,
+          download_count,
+          created_at,
+          courses (
+            course_code,
+            course_title,
+            department
+          )
+        `)
+        .order('created_at', { ascending: false });
 
       if (filters.courseCode && filters.courseCode !== 'all') {
-        query = query.ilike('course_code', `%${filters.courseCode}%`);
+        const clean = filters.courseCode.trim();
+        query = query.or(`course_code.ilike.%${clean}%,course_code.ilike.%${clean.replace(/\s+/g, '')}%`);
       }
 
       if (filters.academicYear && filters.academicYear !== 'all') {
@@ -92,11 +141,26 @@ export async function fetchPastQuestions(
 
       const { data, error } = await query;
 
-      if (!error && data && data.length > 0) {
-        return { data: data as DbPastQuestion[], fromDatabase: true };
+      if (!error && data) {
+        if (data.length > 0) {
+          return {
+            data: data.map(normalizeDbRow),
+            fromDatabase: true,
+          };
+        } else if (
+          filters.courseCode ||
+          filters.academicYear ||
+          filters.department ||
+          filters.semester ||
+          filters.searchQuery ||
+          filters.onlyVerified
+        ) {
+          // If filters are active and database returned 0 results, respect database filter
+          return { data: [], fromDatabase: true };
+        }
       }
     } catch (err) {
-      console.warn('Supabase fetch error, using local fallback:', err);
+      console.warn('Supabase past_questions fetch error, using local fallback:', err);
     }
   }
 
@@ -104,8 +168,9 @@ export async function fetchPastQuestions(
   let fallback = pastQuestionsData.map(normalizeLocalPq);
 
   if (filters.courseCode && filters.courseCode !== 'all') {
+    const q = filters.courseCode.toLowerCase().replace(/\s+/g, '');
     fallback = fallback.filter((p) =>
-      p.course_code.toLowerCase().includes(filters.courseCode!.toLowerCase())
+      p.course_code.toLowerCase().replace(/\s+/g, '').includes(q)
     );
   }
 
@@ -136,26 +201,59 @@ export async function fetchPastQuestions(
 }
 
 /**
+ * Fetches all past questions for a specific course code from Supabase
+ * or local fallback
+ */
+export async function fetchPastQuestionsByCourse(courseCode: string): Promise<DbPastQuestion[]> {
+  const res = await fetchPastQuestions({ courseCode });
+  return res.data;
+}
+
+/**
  * Fetches a single past question by ID from Supabase, or local fallback
  */
 export async function fetchPastQuestionById(id: string): Promise<DbPastQuestion | null> {
+  const cleanId = (id || '').trim();
+
   if (isSupabaseConfigured) {
     try {
       const { data, error } = await supabase
         .from('past_questions')
-        .select('*')
-        .eq('id', id)
-        .single();
+        .select(`
+          id,
+          course_code,
+          course_title,
+          academic_year,
+          department,
+          pdf_storage_url,
+          exam_type,
+          semester,
+          has_verified_solutions,
+          total_pages,
+          file_size,
+          examiners,
+          download_count,
+          created_at,
+          courses (
+            course_code,
+            course_title,
+            department
+          )
+        `)
+        .eq('id', cleanId)
+        .maybeSingle();
 
       if (!error && data) {
-        return data as DbPastQuestion;
+        return normalizeDbRow(data);
       }
     } catch (err) {
-      console.warn('Supabase get by id error:', err);
+      console.warn('Supabase get past_question by id error:', err);
     }
   }
 
-  const local = pastQuestionsData.find((p, idx) => p.id === id || String(idx + 1) === id);
+  const local = pastQuestionsData.find(
+    (p, idx) => p.id === cleanId || String(idx + 1) === cleanId
+  );
   if (local) {
     return normalizeLocalPq(local);
   }

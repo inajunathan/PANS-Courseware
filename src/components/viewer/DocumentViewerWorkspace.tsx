@@ -155,13 +155,16 @@ export default function DocumentViewerWorkspace({ document }: DocumentViewerWork
               <Printer className="w-4 h-4" />
             </button>
 
-            <button
-              onClick={() => alert(`Downloading official lecture notes PDF (${document.fileSize || '8.4 MB'})...`)}
+            <a
+              href={document.pdfUrl || '/sample-past-question.pdf'}
+              download={`${document.courseCode}_${(document.chapterTitle || document.title).replace(/[^a-zA-Z0-9]/g, '_')}.pdf`}
+              target="_blank"
+              rel="noopener noreferrer"
               className="min-h-[44px] flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#7C3AED] hover:bg-[#6B21A8] active:scale-95 text-white text-xs sm:text-sm font-semibold transition-all shadow-xs shrink-0"
             >
               <Download className="w-4 h-4" />
               <span>Download PDF <span className="hidden sm:inline font-normal opacity-90">({document.fileSize || '8.4 MB'})</span></span>
-            </button>
+            </a>
           </div>
         </div>
 

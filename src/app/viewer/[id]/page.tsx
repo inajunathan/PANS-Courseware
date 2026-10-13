@@ -5,7 +5,7 @@ import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import DocumentViewerWorkspace, { ViewerDocumentData } from '@/components/viewer/DocumentViewerWorkspace';
 import { coursesData } from '@/data/coursesData';
-import { pastQuestionsData } from '@/data/pastQuestionsData';
+import { fetchLectureUnitById } from '@/lib/coursesService';
 import { FileText, ArrowLeft } from 'lucide-react';
 
 /**
@@ -44,27 +44,11 @@ interface PageProps {
 }
 
 /**
- * Helper to locate unit and associated course
- */
-function findUnitAndCourse(id: string) {
-  const normalizedId = id.toLowerCase();
-
-  for (const c of coursesData) {
-    const unit = c.lectureUnits.find((u) => u.id.toLowerCase() === normalizedId);
-    if (unit) {
-      return { unit, course: c };
-    }
-  }
-
-  return null;
-}
-
-/**
  * Dynamic SEO metadata generation for each individual PDF viewer route
  */
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { id } = await params;
-  const match = findUnitAndCourse(id);
+  const match = await fetchLectureUnitById(id);
 
   if (!match) {
     return {
@@ -90,7 +74,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function IndividualPdfViewerPage({ params }: PageProps) {
   const { id } = await params;
-  const match = findUnitAndCourse(id);
+  const match = await fetchLectureUnitById(id);
 
   if (!match) {
     return (
@@ -117,6 +101,7 @@ export default async function IndividualPdfViewerPage({ params }: PageProps) {
   }
 
   const { unit, course } = match;
+  const publicPdfUrl = unit.pdfUrl || course.pdf_storage_url || '/sample-past-question.pdf';
 
   const doc: ViewerDocumentData = {
     id: unit.id,
@@ -129,8 +114,8 @@ export default async function IndividualPdfViewerPage({ params }: PageProps) {
     module: `Unit ${unit.unitNumber} PDF & Slides Module`,
     totalPages: unit.totalPages || 28,
     fileSize: unit.fileSize || '8.4 MB',
-    pdfUrl: 'https://raw.githubusercontent.com/mozilla/pdf.js/master/web/compressed.tracemonkey-pldi-09.pdf',
-    returnUrl: `/courses/${course.id}`,
+    pdfUrl: publicPdfUrl,
+    returnUrl: `/courses/${course.code.toLowerCase().replace(/\s+/g, '-')}`,
     chapterTitle: `Unit ${unit.unitNumber}: ${unit.title}`,
     leadParagraph: `This official course document covers the learning objectives and slides for ${course.code} Unit ${unit.unitNumber}, supervised by ${unit.lecturer}. It details core principles, mechanisms, pharmacophore mappings, and exam criteria.`,
   };

@@ -120,6 +120,12 @@ function PastQuestionsContent() {
                 Official past examination papers, continuous assessment tests, and model answers prepared by PANS honor scholars.
               </p>
             </div>
+            {fromDatabase && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold border border-emerald-200 self-start md:self-auto shrink-0 shadow-2xs">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>Live Supabase Database Connected</span>
+              </div>
+            )}
           </div>
 
           {/* Mobile Search & Filter Action Bar (< lg) */}
@@ -545,6 +551,8 @@ function PastQuestionsContent() {
                     <a
                       href={pq.pdf_storage_url || '/sample-past-question.pdf'}
                       download={`${pq.course_code}_${pq.academic_year.replace('/', '_')}.pdf`}
+                      target="_blank"
+                      rel="noopener noreferrer"
                       className="min-h-[44px] inline-flex items-center justify-center gap-1.5 text-xs font-semibold py-2.5 px-3 rounded-xl bg-[#eff4ff] hover:bg-[#F3E8FF] text-[#6B21A8] transition-colors border border-[#E9D5FF]"
                     >
                       <Download className="w-3.5 h-3.5" />

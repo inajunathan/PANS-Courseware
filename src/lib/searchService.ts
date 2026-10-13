@@ -1,6 +1,7 @@
 import { coursesData } from '@/data/coursesData';
 import { pastQuestionsData } from '@/data/pastQuestionsData';
 import { tutorialsData } from '@/data/tutorialsData';
+import { Course } from '@/types';
 import { algoliaClient, ALGOLIA_INDEX_NAME, isAlgoliaConfigured } from './algolia';
 
 export type SearchRecordType = 'course' | 'past_question' | 'tutorial';
@@ -183,6 +184,54 @@ export function getLocalSearchIndex(): UnifiedSearchRecord[] {
     cachedIndex = buildLocalSearchIndex();
   }
   return cachedIndex;
+}
+
+/**
+ * Dynamically enriches the in-memory search index with live courses retrieved from Supabase
+ */
+export function updateSearchIndexWithCourses(liveCourses: Course[]): void {
+  if (!liveCourses || liveCourses.length === 0) return;
+  const current = getLocalSearchIndex();
+  const otherRecords = current.filter((r) => r.type !== 'course');
+
+  const newCourseRecords: UnifiedSearchRecord[] = [];
+  for (const c of liveCourses) {
+    const lectureKeywords = (c.lectureUnits || []).map((u) => u.title).join(' ');
+    newCourseRecords.push({
+      objectID: `course-${c.id}`,
+      type: 'course',
+      title: c.title,
+      code: c.code,
+      subtitle: `${c.code} • ${c.level}L • ${c.semester} Semester • ${c.units} Units`,
+      description: c.description,
+      level: c.level,
+      semester: c.semester,
+      department: c.department,
+      specialization: c.specialization,
+      url: `/courses/${c.code.toLowerCase().replace(/\s+/g, '-')}`,
+      badge: `${c.level}L • ${c.units} Units`,
+      badgeColor: 'purple',
+      metadata: {
+        units: c.units,
+        pdfCount: c.pdfCount,
+        pqCount: c.pqCount,
+        tutorialCount: c.tutorialCount,
+      },
+      keywords: [
+        c.code.toLowerCase(),
+        c.code.toLowerCase().replace(/\s+/g, ''),
+        c.title.toLowerCase(),
+        c.department.toLowerCase(),
+        c.specialization?.toLowerCase() || '',
+        c.leadLecturer?.toLowerCase() || '',
+        lectureKeywords.toLowerCase(),
+        `${c.level}l`,
+        `${c.level} level`,
+      ],
+    });
+  }
+
+  cachedIndex = [...newCourseRecords, ...otherRecords];
 }
 
 /**

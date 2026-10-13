@@ -3,10 +3,22 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { coursesData } from '@/data/coursesData';
+import { fetchAllCourses } from '@/lib/coursesService';
+import { Course } from '@/types';
 import { BookOpen, FileText, ArrowRight, Video, CheckCircle2 } from 'lucide-react';
 
 export default function FeaturedCoursesSection() {
-  const featuredCourses = coursesData.slice(0, 3);
+  const [featuredCourses, setFeaturedCourses] = useState<Course[]>(coursesData.slice(0, 3));
+
+  useEffect(() => {
+    let isCurrent = true;
+    fetchAllCourses().then((courses) => {
+      if (isCurrent && courses && courses.length > 0) {
+        setFeaturedCourses(courses.slice(0, 3));
+      }
+    }).catch(() => {});
+    return () => { isCurrent = false; };
+  }, []);
   const [hoveredCourseId, setHoveredCourseId] = useState<string | null>(null);
   const [activeScrollCourseId, setActiveScrollCourseId] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
