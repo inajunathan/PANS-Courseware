@@ -102,22 +102,36 @@ async function uploadSlide() {
 
   const cleanCourseCode = courseCode.replace(/\s+/g, '_').toUpperCase();
   const cleanTitleSlug = title.replace(/[^a-zA-Z0-9]+/g, '_').slice(0, 30);
-  const paddedUnit = String(unitNumber).padStart(2, '0');
-  const fileName = `Unit_${paddedUnit}_${cleanTitleSlug}_${Date.now()}.pdf`;
+  const ext = path.extname(filePath).toLowerCase() || '.pdf';
+  const mimeMap = {
+    '.pdf': 'application/pdf',
+    '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    '.ppt': 'application/vnd.ms-powerpoint',
+    '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    '.doc': 'application/msword',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.webp': 'image/webp',
+    '.svg': 'image/svg+xml',
+  };
+  const mimeType = mimeMap[ext] || 'application/octet-stream';
+
+  const fileName = `Unit_${paddedUnit}_${cleanTitleSlug}_${Date.now()}${ext}`;
   const storagePath = `${level}L/${cleanCourseCode}/units/${fileName}`;
 
-  console.log(`\n📄 Local File: ${filePath} (${fileSizeStr})`);
+  console.log(`\n📄 Local File: ${filePath} (${fileSizeStr}) [Format: ${ext.toUpperCase()}]`);
   console.log(`📚 Course: [${courseCode}]`);
   console.log(`📑 Unit: ${unitNumber} - ${title} (by ${lecturer})`);
   console.log(`☁️ Storage Bucket: 'courses' -> Path: '${storagePath}'`);
 
   try {
     // 1. Upload to 'courses' bucket
-    console.log('\n⏳ 1/3 Uploading Slide PDF to Supabase Storage...');
+    console.log(`\n⏳ 1/3 Uploading File (${ext.toUpperCase()}) to Supabase Storage...`);
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('courses')
       .upload(storagePath, fileBuffer, {
-        contentType: 'application/pdf',
+        contentType: mimeType,
         upsert: true,
       });
 

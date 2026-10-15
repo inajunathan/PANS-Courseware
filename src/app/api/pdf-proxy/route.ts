@@ -92,7 +92,7 @@ export async function GET(request: NextRequest) {
     return new NextResponse(arrayBuffer, {
       status: 200,
       headers: {
-        'Content-Type': contentType.includes('pdf') ? contentType : 'application/pdf',
+        'Content-Type': contentType || 'application/octet-stream',
         'Content-Disposition': 'inline',
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',

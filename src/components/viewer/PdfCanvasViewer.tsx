@@ -13,8 +13,34 @@ import {
   Smartphone,
   ExternalLink,
   Layers,
-  Monitor
+  Monitor,
+  Presentation,
+  Image as ImageIcon,
+  RotateCcw
 } from 'lucide-react';
+
+export type SupportedFileType = 'pdf' | 'powerpoint' | 'word' | 'image' | 'generic';
+
+/**
+ * Detects file type from URL or path extension
+ */
+export function detectFileType(url: string): SupportedFileType {
+  if (!url) return 'pdf';
+  const clean = url.split('?')[0].split('#')[0].toLowerCase();
+  if (clean.endsWith('.pptx') || clean.endsWith('.ppt')) return 'powerpoint';
+  if (clean.endsWith('.docx') || clean.endsWith('.doc')) return 'word';
+  if (
+    clean.endsWith('.png') ||
+    clean.endsWith('.jpg') ||
+    clean.endsWith('.jpeg') ||
+    clean.endsWith('.webp') ||
+    clean.endsWith('.svg') ||
+    clean.endsWith('.gif')
+  ) {
+    return 'image';
+  }
+  return 'pdf';
+}
 
 interface PdfCanvasViewerProps {
   pdfUrl: string;
@@ -26,7 +52,7 @@ interface PdfCanvasViewerProps {
 }
 
 /**
- * Normalizes PDF URL to stream through proxy if remote to bypass CORS
+ * Normalizes document/PDF URL to stream through proxy if remote to bypass CORS
  */
 export function getViewerPdfUrl(url: string): string {
   if (!url) return '/sample-past-question.pdf';
@@ -40,17 +66,22 @@ export function getViewerPdfUrl(url: string): string {
 
 export default function PdfCanvasViewer({
   pdfUrl,
-  title = 'Past Examination Question Paper',
+  title = 'Academic Course Document',
   courseCode = 'PCH 401',
-  academicYear = '2024/2025',
+  academicYear = '2025/2026',
   department = 'College of Pharmacy',
   totalPagesCount = 1
 }: PdfCanvasViewerProps) {
+  const fileType = detectFileType(pdfUrl);
+
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  // We support both high-fidelity Embedded Reader and Mozilla PDF.js Canvas Mode
+  // PDF render mode: 'canvas' | 'embedded'
   const [renderMode, setRenderMode] = useState<'canvas' | 'embedded'>('canvas');
+  // Office render engine: 'microsoft' | 'google'
+  const [officeEngine, setOfficeEngine] = useState<'microsoft' | 'google'>('microsoft');
+
   const [pdfDoc, setPdfDoc] = useState<any>(null);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [totalPages, setTotalPages] = useState<number>(totalPagesCount);
@@ -71,8 +102,13 @@ export default function PdfCanvasViewer({
     setActiveUrl(getViewerPdfUrl(pdfUrl));
   }, [pdfUrl]);
 
-  // Initialize PDF.js and load document
+  // Initialize PDF.js only when dealing with PDF files in canvas mode
   useEffect(() => {
+    if (fileType !== 'pdf') {
+      setLoading(false);
+      return;
+    }
+
     let isCancelled = false;
 
     async function loadPdf() {
@@ -85,10 +121,8 @@ export default function PdfCanvasViewer({
       setErrorMsg(null);
 
       try {
-        // Dynamically import Mozilla PDF.js in the browser
         const pdfjsLib = await import('pdfjs-dist');
 
-        // Configure the PDF.js Web Worker
         if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
           pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
         }
@@ -108,10 +142,8 @@ export default function PdfCanvasViewer({
           setLoading(false);
         }
       } catch (err: any) {
-        console.warn('PDF.js canvas loading notice for URL:', activeUrl, err);
+        console.warn('PDF.js canvas notice, switching to native embedded view:', err);
         if (!isCancelled) {
-          // If canvas parsing encounters an issue, automatically switch to native embedded iframe reader
-          console.log('Switching to native embedded reader fallback for uploaded PDF');
           setRenderMode('embedded');
           setLoading(false);
         }
@@ -123,13 +155,12 @@ export default function PdfCanvasViewer({
     return () => {
       isCancelled = true;
     };
-  }, [activeUrl, renderMode]);
+  }, [activeUrl, renderMode, fileType]);
 
-  // Render the current page onto the HTML5 Canvas
+  // Render current PDF page onto HTML5 Canvas
   const renderPage = useCallback(async () => {
-    if (renderMode !== 'canvas' || !pdfDoc || !canvasRef.current) return;
+    if (fileType !== 'pdf' || renderMode !== 'canvas' || !pdfDoc || !canvasRef.current) return;
 
-    // Cancel any previous in-flight render task
     if (renderTaskRef.current) {
       try {
         renderTaskRef.current.cancel();
@@ -148,7 +179,6 @@ export default function PdfCanvasViewer({
       const context = canvas.getContext('2d');
       if (!context) return;
 
-      // Automatically scale to container width on mobile screens
       const containerWidth = containerRef.current
         ? containerRef.current.clientWidth
         : (typeof window !== 'undefined' ? window.innerWidth : 390);
@@ -189,13 +219,13 @@ export default function PdfCanvasViewer({
       }
       setRendering(false);
     }
-  }, [renderMode, pdfDoc, currentPage, zoomMultiplier]);
+  }, [fileType, renderMode, pdfDoc, currentPage, zoomMultiplier]);
 
   useEffect(() => {
     renderPage();
   }, [renderPage]);
 
-  // Handle window resizing and orientation changes
+  // Handle window resizing
   useEffect(() => {
     let timeoutId: any;
     const handleResize = () => {
@@ -242,16 +272,56 @@ export default function PdfCanvasViewer({
     touchStartDistRef.current = null;
   };
 
-  const downloadFileName = `${courseCode.replace(/[^a-zA-Z0-9]/g, '_')}_${title.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+  // Determine file extension for download naming
+  const rawExt = pdfUrl.split('?')[0].split('#')[0].split('.').pop() || 'pdf';
+  const cleanExt = rawExt.toLowerCase();
+  const safeExt = ['pdf', 'pptx', 'ppt', 'docx', 'doc', 'png', 'jpg', 'jpeg', 'webp', 'svg'].includes(cleanExt)
+    ? cleanExt
+    : 'pdf';
+  const downloadFileName = `${courseCode.replace(/[^a-zA-Z0-9]/g, '_')}_${title.replace(/[^a-zA-Z0-9]/g, '_')}.${safeExt}`;
+
+  // File type styling and text helpers
+  const fileTypeMeta = {
+    pdf: {
+      label: 'PDF Document',
+      badgeBg: 'bg-[#F3E8FF] text-[#6B21A8]',
+      icon: <FileText className="w-5 h-5 text-[#6B21A8]" />,
+      actionText: 'Download PDF',
+    },
+    powerpoint: {
+      label: 'PowerPoint Slide Deck (.pptx)',
+      badgeBg: 'bg-orange-100 text-orange-800',
+      icon: <Presentation className="w-5 h-5 text-orange-600" />,
+      actionText: 'Download Presentation',
+    },
+    word: {
+      label: 'Word Document (.docx)',
+      badgeBg: 'bg-blue-100 text-blue-800',
+      icon: <FileText className="w-5 h-5 text-blue-600" />,
+      actionText: 'Download Document',
+    },
+    image: {
+      label: 'Scientific Diagram / Image',
+      badgeBg: 'bg-emerald-100 text-emerald-800',
+      icon: <ImageIcon className="w-5 h-5 text-emerald-600" />,
+      actionText: 'Download Image',
+    },
+    generic: {
+      label: 'Academic File',
+      badgeBg: 'bg-slate-100 text-slate-800',
+      icon: <FileText className="w-5 h-5 text-slate-600" />,
+      actionText: 'Download File',
+    },
+  }[fileType];
 
   return (
     <div className="w-full flex flex-col items-center bg-[#FAF5FF] min-h-screen">
-      {/* 1. Document Context Banner */}
+      {/* 1. Universal Document Context Banner */}
       <section className="w-full bg-white border-b border-slate-200 shadow-xs z-30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl bg-[#F3E8FF] flex items-center justify-center text-[#6B21A8] shrink-0">
-              <FileText className="w-5 h-5" />
+            <div className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl bg-[#F3E8FF] flex items-center justify-center shrink-0">
+              {fileTypeMeta.icon}
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
@@ -263,9 +333,8 @@ export default function PdfCanvasViewer({
                   {academicYear}
                 </span>
                 <span className="text-slate-300 text-xs hidden sm:inline">•</span>
-                <span className="text-xs text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 hidden sm:inline-flex items-center gap-1 font-medium">
-                  <FileText className="w-3.5 h-3.5 text-slate-500" />
-                  <span>Verified PDF</span>
+                <span className={`text-xs font-medium px-2 py-0.5 rounded border border-slate-200 hidden sm:inline-flex items-center gap-1 ${fileTypeMeta.badgeBg}`}>
+                  <span>{fileTypeMeta.label}</span>
                 </span>
               </div>
               <h1 className="font-['Montserrat',sans-serif] text-sm sm:text-lg font-bold text-[#0F172A] mt-0.5 truncate">
@@ -277,32 +346,45 @@ export default function PdfCanvasViewer({
 
           {/* Action Buttons */}
           <div className="flex items-center gap-2 self-stretch sm:self-auto justify-end flex-wrap sm:flex-nowrap">
-            {/* Toggle Reader Mode */}
-            <button
-              onClick={() => setRenderMode(renderMode === 'canvas' ? 'embedded' : 'canvas')}
-              className="min-h-[44px] inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-[#eff4ff] hover:bg-[#F3E8FF] text-slate-700 hover:text-[#6B21A8] text-xs font-semibold border border-slate-200 transition-all active:scale-95"
-              title="Toggle Reader Mode"
-            >
-              {renderMode === 'canvas' ? (
-                <>
-                  <Monitor className="w-4 h-4 text-[#7C3AED]" />
-                  <span>Native PDF Mode</span>
-                </>
-              ) : (
-                <>
-                  <Layers className="w-4 h-4 text-[#7C3AED]" />
-                  <span>Canvas Mode</span>
-                </>
-              )}
-            </button>
+            {/* If PowerPoint or Word, allow switching between Microsoft and Google engines */}
+            {(fileType === 'powerpoint' || fileType === 'word') && (
+              <button
+                onClick={() => setOfficeEngine(officeEngine === 'microsoft' ? 'google' : 'microsoft')}
+                className="min-h-[44px] inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-[#eff4ff] hover:bg-[#F3E8FF] text-slate-700 hover:text-[#6B21A8] text-xs font-semibold border border-slate-200 transition-all active:scale-95"
+                title="Switch Viewer Engine"
+              >
+                <span>{officeEngine === 'microsoft' ? 'Office Online' : 'Google Docs Engine'}</span>
+              </button>
+            )}
+
+            {/* If PDF, toggle Native vs Canvas reader */}
+            {fileType === 'pdf' && (
+              <button
+                onClick={() => setRenderMode(renderMode === 'canvas' ? 'embedded' : 'canvas')}
+                className="min-h-[44px] inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-[#eff4ff] hover:bg-[#F3E8FF] text-slate-700 hover:text-[#6B21A8] text-xs font-semibold border border-slate-200 transition-all active:scale-95"
+                title="Toggle Reader Mode"
+              >
+                {renderMode === 'canvas' ? (
+                  <>
+                    <Monitor className="w-4 h-4 text-[#7C3AED]" />
+                    <span>Native PDF Mode</span>
+                  </>
+                ) : (
+                  <>
+                    <Layers className="w-4 h-4 text-[#7C3AED]" />
+                    <span>Canvas Mode</span>
+                  </>
+                )}
+              </button>
+            )}
 
             {/* Fullscreen View in Dedicated Tab */}
             <a
-              href={proxyUrl}
+              href={fileType === 'pdf' ? proxyUrl : pdfUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="min-h-[44px] inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-[#eff4ff] hover:bg-[#F3E8FF] text-slate-700 hover:text-[#6B21A8] text-xs font-semibold border border-slate-200 transition-all active:scale-95"
-              title="Open PDF in Fullscreen Tab"
+              title="Open File in Fullscreen Tab"
             >
               <ExternalLink className="w-4 h-4 text-[#7C3AED]" />
               <span className="hidden sm:inline">Fullscreen</span>
@@ -314,18 +396,17 @@ export default function PdfCanvasViewer({
               download={downloadFileName}
               target="_blank"
               rel="noopener noreferrer"
-              className="min-h-[44px] inline-flex items-center justify-center gap-2 px-4 sm:px-5 py-2.5 rounded-xl bg-[#7C3AED] hover:bg-[#6B21A8] active:scale-[0.98] text-white text-xs sm:text-sm font-semibold shadow-xs transition-all"
+              className="min-h-[44px] inline-flex items-center justify-center gap-2 px-4 sm:px-5 py-2.5 rounded-xl bg-[#7C3AED] hover:bg-[#6B21A8] active:scale-[0.98] text-white text-xs sm:text-sm font-semibold shadow-xs transition-all whitespace-nowrap"
             >
               <Download className="w-4 h-4" />
-              <span>Download PDF</span>
+              <span>{fileTypeMeta.actionText}</span>
             </a>
           </div>
         </div>
 
-        {/* 2. Reader Controls Toolbar for Canvas Mode */}
-        {renderMode === 'canvas' && (
+        {/* 2. Reader Controls Toolbar */}
+        {fileType === 'pdf' && renderMode === 'canvas' && (
           <div className="w-full bg-[#eff4ff]/90 backdrop-blur-md px-3 sm:px-6 py-2 flex items-center justify-between border-t border-slate-200 text-xs sm:text-sm gap-2 overflow-x-auto">
-            {/* Page Navigation */}
             <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
               <button
                 disabled={currentPage <= 1 || loading}
@@ -354,13 +435,11 @@ export default function PdfCanvasViewer({
               </button>
             </div>
 
-            {/* Mobile Tag */}
             <div className="hidden lg:flex items-center gap-1.5 text-xs text-slate-500">
               <Smartphone className="w-3.5 h-3.5 text-[#7C3AED]" />
               <span>Canvas Auto-Scaled • Pinch to Zoom Enabled</span>
             </div>
 
-            {/* Zoom Controls */}
             <div className="flex items-center gap-2 shrink-0">
               <div className="flex items-center bg-white rounded-xl shadow-2xs border border-slate-200 overflow-hidden">
                 <button
@@ -395,11 +474,90 @@ export default function PdfCanvasViewer({
             </div>
           </div>
         )}
+
+        {/* Zoom Bar for Image Viewer */}
+        {fileType === 'image' && (
+          <div className="w-full bg-[#eff4ff]/90 backdrop-blur-md px-3 sm:px-6 py-2 flex items-center justify-between border-t border-slate-200 text-xs sm:text-sm gap-2">
+            <span className="text-xs text-slate-500 font-medium">Interactive High-Resolution Image Preview</span>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center bg-white rounded-xl shadow-2xs border border-slate-200 overflow-hidden">
+                <button
+                  disabled={zoomMultiplier <= 0.4}
+                  onClick={() => setZoomMultiplier((s) => Math.max(s - 0.2, 0.4))}
+                  className="w-10 h-10 flex items-center justify-center hover:bg-[#F3E8FF] text-slate-600"
+                  title="Zoom Out"
+                >
+                  <ZoomOut className="w-4 h-4" />
+                </button>
+                <span className="px-2 font-mono font-bold text-xs text-slate-800 min-w-[50px] text-center">
+                  {Math.round(zoomMultiplier * 100)}%
+                </span>
+                <button
+                  disabled={zoomMultiplier >= 3.0}
+                  onClick={() => setZoomMultiplier((s) => Math.min(s + 0.2, 3.0))}
+                  className="w-10 h-10 flex items-center justify-center hover:bg-[#F3E8FF] text-slate-600"
+                  title="Zoom In"
+                >
+                  <ZoomIn className="w-4 h-4" />
+                </button>
+              </div>
+              <button
+                onClick={() => setZoomMultiplier(1.0)}
+                className="h-10 px-3 rounded-xl bg-white hover:bg-[#F3E8FF] text-xs font-semibold text-slate-700 border border-slate-200 flex items-center gap-1"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Reset</span>
+              </button>
+            </div>
+          </div>
+        )}
       </section>
 
-      {/* 3. Main Viewport Area */}
-      {renderMode === 'embedded' ? (
-        /* Native Browser Embedded PDF Viewport */
+      {/* 3. Main Document Viewport Area */}
+
+      {/* CASE A: PowerPoint or Word Document */}
+      {(fileType === 'powerpoint' || fileType === 'word') ? (
+        <main className="w-full max-w-7xl flex-1 flex flex-col items-center justify-start p-2 sm:p-6 lg:p-8">
+          <div className="w-full bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden flex flex-col min-h-[80vh] sm:min-h-[85vh]">
+            <iframe
+              src={
+                officeEngine === 'microsoft'
+                  ? `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(pdfUrl)}`
+                  : `https://docs.google.com/viewer?url=${encodeURIComponent(pdfUrl)}&embedded=true`
+              }
+              className="w-full flex-1 min-h-[80vh] sm:min-h-[85vh] border-0 rounded-2xl"
+              title={`${title} - Document Viewer`}
+            />
+          </div>
+          <div className="mt-3 text-center text-xs text-slate-500 flex flex-wrap items-center justify-center gap-3">
+            <span>Powered by {officeEngine === 'microsoft' ? 'Microsoft Office Online' : 'Google Docs Viewer'}</span>
+            <span>•</span>
+            <button
+              onClick={() => setOfficeEngine(officeEngine === 'microsoft' ? 'google' : 'microsoft')}
+              className="text-[#7C3AED] hover:underline font-semibold"
+            >
+              Switch to {officeEngine === 'microsoft' ? 'Google Docs Engine' : 'Microsoft Office Online'}
+            </button>
+            <span>•</span>
+            <a href={pdfUrl} download={downloadFileName} className="text-[#7C3AED] hover:underline font-semibold">
+              Download File ({cleanExt.toUpperCase()})
+            </a>
+          </div>
+        </main>
+      ) : fileType === 'image' ? (
+        /* CASE B: Scientific Diagram / Image */
+        <main className="w-full max-w-7xl flex-1 flex flex-col items-center justify-start p-2 sm:p-6 lg:p-8 overflow-auto">
+          <div className="w-full bg-white rounded-2xl shadow-xl border border-slate-200 p-4 sm:p-8 flex flex-col items-center justify-center min-h-[75vh] overflow-auto">
+            <img
+              src={proxyUrl}
+              alt={title}
+              style={{ transform: `scale(${zoomMultiplier})`, transformOrigin: 'center center' }}
+              className="max-w-full h-auto object-contain rounded-xl transition-transform duration-200 shadow-sm select-none"
+            />
+          </div>
+        </main>
+      ) : renderMode === 'embedded' ? (
+        /* CASE C1: PDF in Native Browser Mode */
         <main className="w-full max-w-7xl flex-1 flex flex-col items-center justify-start p-2 sm:p-6 lg:p-8">
           <div className="w-full bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden flex flex-col min-h-[80vh] sm:min-h-[85vh]">
             <iframe
@@ -417,7 +575,7 @@ export default function PdfCanvasViewer({
           </div>
         </main>
       ) : (
-        /* Mozilla PDF.js Canvas Viewport with Touch Pinch-to-Zoom */
+        /* CASE C2: PDF in Mozilla PDF.js Canvas Mode */
         <main
           ref={containerRef}
           onTouchStart={handleTouchStart}
@@ -465,7 +623,6 @@ export default function PdfCanvasViewer({
             </div>
           )}
 
-          {/* HTML5 Canvas Element */}
           <div
             className={`relative bg-white rounded-xl sm:rounded-2xl shadow-lg sm:shadow-xl border border-slate-200/90 overflow-hidden transition-shadow duration-200 max-w-full ${
               loading ? 'hidden' : 'block'
