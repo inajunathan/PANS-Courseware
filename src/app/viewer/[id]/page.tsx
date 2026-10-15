@@ -9,18 +9,10 @@ import { fetchLectureUnitById } from '@/lib/coursesService';
 import { FileText, ArrowLeft } from 'lucide-react';
 
 /**
- * Incremental Static Regeneration (ISR) configuration
- * Revalidates every 86400 seconds (24 hours).
- * This ensures thousands of lecture notes, unit syllabus PDFs, and official course
- * handouts are statically cached at Vercel's Edge CDN.
+ * Force-dynamic: Every request reads the real latest uploaded PDF
+ * and slides record from Supabase, ensuring instant updates.
  */
-export const revalidate = 86400;
-
-/**
- * Dynamic params set to true: any newly uploaded PDF unit record
- * not pre-rendered at build time will be generated on-demand and cached for 24 hours.
- */
-export const dynamicParams = true;
+export const dynamic = 'force-dynamic';
 
 /**
  * Pre-generate static routes at build time for all curriculum lecture unit PDFs.

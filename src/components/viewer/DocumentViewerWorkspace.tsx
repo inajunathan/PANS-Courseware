@@ -43,7 +43,8 @@ interface DocumentViewerWorkspaceProps {
 }
 
 export default function DocumentViewerWorkspace({ document }: DocumentViewerWorkspaceProps) {
-  const [viewMode, setViewMode] = useState<'interactive' | 'canvas'>('interactive');
+  // Default to 'canvas' mode so the uploaded PDF is immediately visible!
+  const [viewMode, setViewMode] = useState<'canvas' | 'interactive'>('canvas');
   const [currentPage, setCurrentPage] = useState(1);
   const totalPages = document.totalPages || 28;
   const [zoomLevel, setZoomLevel] = useState(100);
@@ -112,15 +113,24 @@ export default function DocumentViewerWorkspace({ document }: DocumentViewerWork
           {/* Right: Actions */}
           <div className="flex items-center gap-2 shrink-0 self-stretch sm:self-auto overflow-x-auto pb-1 sm:pb-0 justify-between sm:justify-end">
             <button
-              onClick={() => setViewMode(viewMode === 'interactive' ? 'canvas' : 'interactive')}
+              onClick={() => setViewMode(viewMode === 'canvas' ? 'interactive' : 'canvas')}
               className={`min-h-[44px] flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all shrink-0 active:scale-95 ${
-                viewMode === 'canvas'
+                viewMode === 'interactive'
                   ? 'bg-[#7C3AED] text-white shadow-xs'
                   : 'bg-[#eff4ff] text-slate-700 hover:bg-[#F3E8FF] hover:text-[#6B21A8]'
               }`}
             >
-              <Smartphone className="w-4 h-4" />
-              <span>{viewMode === 'canvas' ? 'Interactive View' : 'PDF Canvas Mode'}</span>
+              {viewMode === 'canvas' ? (
+                <>
+                  <BookOpen className="w-4 h-4 text-[#7C3AED]" />
+                  <span>Text Summary</span>
+                </>
+              ) : (
+                <>
+                  <FileText className="w-4 h-4" />
+                  <span>PDF Document</span>
+                </>
+              )}
             </button>
 
             <button
@@ -135,16 +145,31 @@ export default function DocumentViewerWorkspace({ document }: DocumentViewerWork
               <span>Notes ({savedNotes.length})</span>
             </button>
 
-            <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className={`w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl text-slate-700 hover:bg-[#F3E8FF] hover:text-[#6B21A8] transition-all flex items-center justify-center shrink-0 active:scale-95 ${
-                sidebarOpen ? 'bg-[#eff4ff]' : 'bg-slate-100'
-              }`}
-              title="Toggle Page Thumbnails"
-              aria-label="Toggle Thumbnails"
-            >
-              <Layers className="w-4 h-4" />
-            </button>
+            {viewMode === 'interactive' && (
+              <button
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className={`w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl text-slate-700 hover:bg-[#F3E8FF] hover:text-[#6B21A8] transition-all flex items-center justify-center shrink-0 active:scale-95 ${
+                  sidebarOpen ? 'bg-[#eff4ff]' : 'bg-slate-100'
+                }`}
+                title="Toggle Page Thumbnails"
+                aria-label="Toggle Thumbnails"
+              >
+                <Layers className="w-4 h-4" />
+              </button>
+            )}
+
+            {document.pdfUrl && (
+              <a
+                href={document.pdfUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="min-h-[44px] px-3 rounded-xl bg-[#eff4ff] text-slate-700 hover:bg-[#F3E8FF] hover:text-[#6B21A8] transition-all flex items-center justify-center shrink-0 active:scale-95 text-xs font-semibold gap-1.5"
+                title="Open PDF in Fullscreen Tab"
+                aria-label="Open PDF in Fullscreen Tab"
+              >
+                <span>Fullscreen</span>
+              </a>
+            )}
 
             <button
               onClick={() => alert('Printing academic document...')}
@@ -168,76 +193,78 @@ export default function DocumentViewerWorkspace({ document }: DocumentViewerWork
           </div>
         </div>
 
-        {/* 2. Secondary Reader Toolbar */}
-        <div className="w-full bg-[#eff4ff]/80 backdrop-blur-md px-3 sm:px-6 py-2 flex items-center justify-between border-t border-slate-200 text-xs sm:text-sm gap-2 overflow-x-auto">
-          {/* Page Indicator & Navigation */}
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            <button
-              disabled={currentPage <= 1}
-              onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
-              className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl bg-white hover:bg-[#F3E8FF] text-slate-700 hover:text-[#6B21A8] disabled:opacity-30 disabled:pointer-events-none transition-all shadow-2xs border border-slate-200 flex items-center justify-center active:scale-95"
-              title="Previous Page"
-              aria-label="Previous Page"
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-
-            <div className="h-11 min-h-[44px] flex items-center bg-white rounded-xl px-3 sm:px-4 shadow-2xs border border-slate-200 font-semibold text-slate-800 select-none">
-              <span className="text-[#6B21A8] font-bold text-sm sm:text-xs">{currentPage}</span>
-              <span className="mx-1.5 text-slate-400">/</span>
-              <span className="text-slate-600">{totalPages}</span>
-            </div>
-
-            <button
-              disabled={currentPage >= totalPages}
-              onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
-              className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl bg-white hover:bg-[#F3E8FF] text-slate-700 hover:text-[#6B21A8] disabled:opacity-30 disabled:pointer-events-none transition-all shadow-2xs border border-slate-200 flex items-center justify-center active:scale-95"
-              title="Next Page"
-              aria-label="Next Page"
-            >
-              <ChevronRight className="w-5 h-5" />
-            </button>
-          </div>
-
-          {/* Zoom Controls */}
-          <div className="flex items-center gap-2 shrink-0">
-            <div className="flex items-center bg-white rounded-xl shadow-2xs border border-slate-200 overflow-hidden">
+        {/* 2. Secondary Reader Toolbar (Only for interactive text summary mode) */}
+        {viewMode === 'interactive' && (
+          <div className="w-full bg-[#eff4ff]/80 backdrop-blur-md px-3 sm:px-6 py-2 flex items-center justify-between border-t border-slate-200 text-xs sm:text-sm gap-2 overflow-x-auto">
+            {/* Page Indicator & Navigation */}
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
               <button
-                onClick={handleZoomOut}
-                className="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-[#F3E8FF] text-slate-600 hover:text-[#6B21A8] transition-colors active:scale-95"
-                title="Zoom Out"
-                aria-label="Zoom Out"
+                disabled={currentPage <= 1}
+                onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl bg-white hover:bg-[#F3E8FF] text-slate-700 hover:text-[#6B21A8] disabled:opacity-30 disabled:pointer-events-none transition-all shadow-2xs border border-slate-200 flex items-center justify-center active:scale-95"
+                title="Previous Page"
+                aria-label="Previous Page"
               >
-                <ZoomOut className="w-4 h-4" />
+                <ChevronLeft className="w-5 h-5" />
               </button>
-              <span className="px-2 font-mono font-bold text-xs text-[#0F172A] min-w-[50px] text-center select-none">
-                {zoomLevel}%
-              </span>
+
+              <div className="h-11 min-h-[44px] flex items-center bg-white rounded-xl px-3 sm:px-4 shadow-2xs border border-slate-200 font-semibold text-slate-800 select-none">
+                <span className="text-[#6B21A8] font-bold text-sm sm:text-xs">{currentPage}</span>
+                <span className="mx-1.5 text-slate-400">/</span>
+                <span className="text-slate-600">{totalPages}</span>
+              </div>
+
               <button
-                onClick={handleZoomIn}
-                className="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-[#F3E8FF] text-slate-600 hover:text-[#6B21A8] transition-colors active:scale-95"
-                title="Zoom In"
-                aria-label="Zoom In"
+                disabled={currentPage >= totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl bg-white hover:bg-[#F3E8FF] text-slate-700 hover:text-[#6B21A8] disabled:opacity-30 disabled:pointer-events-none transition-all shadow-2xs border border-slate-200 flex items-center justify-center active:scale-95"
+                title="Next Page"
+                aria-label="Next Page"
               >
-                <ZoomIn className="w-4 h-4" />
+                <ChevronRight className="w-5 h-5" />
               </button>
             </div>
 
-            <button
-              onClick={handleFitWidth}
-              className="hidden sm:flex min-h-[44px] px-3.5 items-center justify-center rounded-xl bg-white hover:bg-[#F3E8FF] hover:text-[#6B21A8] text-slate-700 font-semibold text-xs shadow-2xs border border-slate-200 transition-colors"
-            >
-              Fit Width
-            </button>
+            {/* Zoom Controls */}
+            <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center bg-white rounded-xl shadow-2xs border border-slate-200 overflow-hidden">
+                <button
+                  onClick={handleZoomOut}
+                  className="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-[#F3E8FF] text-slate-600 hover:text-[#6B21A8] transition-colors active:scale-95"
+                  title="Zoom Out"
+                  aria-label="Zoom Out"
+                >
+                  <ZoomOut className="w-4 h-4" />
+                </button>
+                <span className="px-2 font-mono font-bold text-xs text-[#0F172A] min-w-[50px] text-center select-none">
+                  {zoomLevel}%
+                </span>
+                <button
+                  onClick={handleZoomIn}
+                  className="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-[#F3E8FF] text-slate-600 hover:text-[#6B21A8] transition-colors active:scale-95"
+                  title="Zoom In"
+                  aria-label="Zoom In"
+                >
+                  <ZoomIn className="w-4 h-4" />
+                </button>
+              </div>
 
-            <button
-              onClick={handleFitPage}
-              className="hidden sm:flex min-h-[44px] px-3.5 items-center justify-center rounded-xl bg-white hover:bg-[#F3E8FF] hover:text-[#6B21A8] text-slate-700 font-semibold text-xs shadow-2xs border border-slate-200 transition-colors"
-            >
-              Fit Page
-            </button>
+              <button
+                onClick={handleFitWidth}
+                className="hidden sm:flex min-h-[44px] px-3.5 items-center justify-center rounded-xl bg-white hover:bg-[#F3E8FF] hover:text-[#6B21A8] text-slate-700 font-semibold text-xs shadow-2xs border border-slate-200 transition-colors"
+              >
+                Fit Width
+              </button>
+
+              <button
+                onClick={handleFitPage}
+                className="hidden sm:flex min-h-[44px] px-3.5 items-center justify-center rounded-xl bg-white hover:bg-[#F3E8FF] hover:text-[#6B21A8] text-slate-700 font-semibold text-xs shadow-2xs border border-slate-200 transition-colors"
+              >
+                Fit Page
+              </button>
+            </div>
           </div>
-        </div>
+        )}
       </header>
 
       {/* 3. Interactive Document Workspace or Mozilla PDF.js Canvas Preview */}

@@ -8,19 +8,10 @@ import { fetchPastQuestions, fetchPastQuestionById } from '@/lib/pastQuestionsSe
 import { ArrowLeft, FileQuestion, Calendar, Building } from 'lucide-react';
 
 /**
- * Incremental Static Regeneration (ISR) configuration
- * Revalidates every 86400 seconds (24 hours).
- * This ensures thousands of past question resource pages are cached statically
- * on Vercel's Edge/Hobby tier, eliminating continuous database reads and only
- * hitting Supabase when a brand new question is added or updated.
+ * Force-dynamic: Every request reads the real uploaded past question
+ * PDF from Supabase, ensuring instant updates for newly uploaded papers.
  */
-export const revalidate = 86400;
-
-/**
- * Dynamic params set to true: pages not pre-rendered at build time
- * will be generated on-demand and cached statically for subsequent requests.
- */
-export const dynamicParams = true;
+export const dynamic = 'force-dynamic';
 
 /**
  * Pre-generate static routes at build time for existing past questions.

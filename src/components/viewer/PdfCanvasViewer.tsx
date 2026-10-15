@@ -7,14 +7,13 @@ import {
   ZoomIn, 
   ZoomOut, 
   Download, 
-  Maximize2, 
-  RotateCw, 
   AlertCircle,
   FileText,
   Loader2,
-  RefreshCw,
   Smartphone,
-  Check
+  ExternalLink,
+  Layers,
+  Monitor
 } from 'lucide-react';
 
 interface PdfCanvasViewerProps {
@@ -24,6 +23,19 @@ interface PdfCanvasViewerProps {
   academicYear?: string;
   department?: string;
   totalPagesCount?: number;
+}
+
+/**
+ * Normalizes PDF URL to stream through proxy if remote to bypass CORS
+ */
+export function getViewerPdfUrl(url: string): string {
+  if (!url) return '/sample-past-question.pdf';
+  if (url.startsWith('/')) return url;
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    if (url.includes('/api/pdf-proxy')) return url;
+    return `/api/pdf-proxy?url=${encodeURIComponent(url)}`;
+  }
+  return url;
 }
 
 export default function PdfCanvasViewer({
@@ -37,6 +49,8 @@ export default function PdfCanvasViewer({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
+  // We support both high-fidelity Embedded Reader and Mozilla PDF.js Canvas Mode
+  const [renderMode, setRenderMode] = useState<'canvas' | 'embedded'>('canvas');
   const [pdfDoc, setPdfDoc] = useState<any>(null);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [totalPages, setTotalPages] = useState<number>(totalPagesCount);
@@ -44,18 +58,29 @@ export default function PdfCanvasViewer({
   const [loading, setLoading] = useState<boolean>(true);
   const [rendering, setRendering] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [activeUrl, setActiveUrl] = useState<string>(pdfUrl);
-  const [copiedNotification, setCopiedNotification] = useState<boolean>(false);
+
+  const proxyUrl = getViewerPdfUrl(pdfUrl);
+  const [activeUrl, setActiveUrl] = useState<string>(proxyUrl);
 
   const renderTaskRef = useRef<any>(null);
   const touchStartDistRef = useRef<number | null>(null);
   const touchStartZoomRef = useRef<number>(1.0);
+
+  // Sync activeUrl when pdfUrl prop changes
+  useEffect(() => {
+    setActiveUrl(getViewerPdfUrl(pdfUrl));
+  }, [pdfUrl]);
 
   // Initialize PDF.js and load document
   useEffect(() => {
     let isCancelled = false;
 
     async function loadPdf() {
+      if (renderMode !== 'canvas') {
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       setErrorMsg(null);
 
@@ -83,15 +108,12 @@ export default function PdfCanvasViewer({
           setLoading(false);
         }
       } catch (err: any) {
-        console.warn('PDF.js failed to load URL:', activeUrl, err);
+        console.warn('PDF.js canvas loading notice for URL:', activeUrl, err);
         if (!isCancelled) {
-          // If remote CORS blocked, provide a direct fallback to our local sample PDF
-          if (activeUrl !== '/sample-past-question.pdf') {
-            setActiveUrl('/sample-past-question.pdf');
-          } else {
-            setErrorMsg('Unable to render PDF preview directly. You can download the file or retry.');
-            setLoading(false);
-          }
+          // If canvas parsing encounters an issue, automatically switch to native embedded iframe reader
+          console.log('Switching to native embedded reader fallback for uploaded PDF');
+          setRenderMode('embedded');
+          setLoading(false);
         }
       }
     }
@@ -101,11 +123,11 @@ export default function PdfCanvasViewer({
     return () => {
       isCancelled = true;
     };
-  }, [activeUrl]);
+  }, [activeUrl, renderMode]);
 
   // Render the current page onto the HTML5 Canvas
   const renderPage = useCallback(async () => {
-    if (!pdfDoc || !canvasRef.current) return;
+    if (renderMode !== 'canvas' || !pdfDoc || !canvasRef.current) return;
 
     // Cancel any previous in-flight render task
     if (renderTaskRef.current) {
@@ -126,27 +148,21 @@ export default function PdfCanvasViewer({
       const context = canvas.getContext('2d');
       if (!context) return;
 
-      // Automatically scale to 100% of container width on mobile screens
+      // Automatically scale to container width on mobile screens
       const containerWidth = containerRef.current
         ? containerRef.current.clientWidth
         : (typeof window !== 'undefined' ? window.innerWidth : 390);
 
-      // Mobile padding compensation: 16px (8px each side) on mobile, 48px on desktop
       const isMobile = typeof window !== 'undefined' ? window.innerWidth < 768 : false;
       const padding = isMobile ? 16 : 48;
       const availableWidth = Math.max(containerWidth - padding, 260);
 
       const unscaledViewport = page.getViewport({ scale: 1.0 });
-      // Fit to container width base scale
       const fitScale = availableWidth / unscaledViewport.width;
-
-      // On mobile default is 100% screen fit; on desktop cap default base to 1.25
       const baseScale = isMobile ? fitScale : Math.min(fitScale, 1.25);
       const effectiveScale = Math.max(baseScale * zoomMultiplier, 0.45);
 
       const viewport = page.getViewport({ scale: effectiveScale });
-
-      // Support high-DPI screens (Retina) for crisp mathematical & chemical formulas
       const outputScale = window.devicePixelRatio || 1;
 
       canvas.width = Math.floor(viewport.width * outputScale);
@@ -173,13 +189,13 @@ export default function PdfCanvasViewer({
       }
       setRendering(false);
     }
-  }, [pdfDoc, currentPage, zoomMultiplier]);
+  }, [renderMode, pdfDoc, currentPage, zoomMultiplier]);
 
   useEffect(() => {
     renderPage();
   }, [renderPage]);
 
-  // Handle window resizing and orientation changes for responsive mobile preview
+  // Handle window resizing and orientation changes
   useEffect(() => {
     let timeoutId: any;
     const handleResize = () => {
@@ -226,6 +242,8 @@ export default function PdfCanvasViewer({
     touchStartDistRef.current = null;
   };
 
+  const downloadFileName = `${courseCode.replace(/[^a-zA-Z0-9]/g, '_')}_${title.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+
   return (
     <div className="w-full flex flex-col items-center bg-[#FAF5FF] min-h-screen">
       {/* 1. Document Context Banner */}
@@ -247,7 +265,7 @@ export default function PdfCanvasViewer({
                 <span className="text-slate-300 text-xs hidden sm:inline">•</span>
                 <span className="text-xs text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 hidden sm:inline-flex items-center gap-1 font-medium">
                   <FileText className="w-3.5 h-3.5 text-slate-500" />
-                  <span>PDF Document</span>
+                  <span>Verified PDF</span>
                 </span>
               </div>
               <h1 className="font-['Montserrat',sans-serif] text-sm sm:text-lg font-bold text-[#0F172A] mt-0.5 truncate">
@@ -257,170 +275,224 @@ export default function PdfCanvasViewer({
             </div>
           </div>
 
-          {/* Direct Download Action Button (44px min-h touch target) */}
-          <div className="flex items-center gap-2 self-stretch sm:self-auto justify-end">
+          {/* Action Buttons */}
+          <div className="flex items-center gap-2 self-stretch sm:self-auto justify-end flex-wrap sm:flex-nowrap">
+            {/* Toggle Reader Mode */}
+            <button
+              onClick={() => setRenderMode(renderMode === 'canvas' ? 'embedded' : 'canvas')}
+              className="min-h-[44px] inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-[#eff4ff] hover:bg-[#F3E8FF] text-slate-700 hover:text-[#6B21A8] text-xs font-semibold border border-slate-200 transition-all active:scale-95"
+              title="Toggle Reader Mode"
+            >
+              {renderMode === 'canvas' ? (
+                <>
+                  <Monitor className="w-4 h-4 text-[#7C3AED]" />
+                  <span>Native PDF Mode</span>
+                </>
+              ) : (
+                <>
+                  <Layers className="w-4 h-4 text-[#7C3AED]" />
+                  <span>Canvas Mode</span>
+                </>
+              )}
+            </button>
+
+            {/* Fullscreen View in Dedicated Tab */}
             <a
-              href={activeUrl}
-              download={`${courseCode}_${academicYear.replace('/', '_')}_PastQuestion.pdf`}
-              className="w-full sm:w-auto min-h-[44px] inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#7C3AED] hover:bg-[#6B21A8] active:scale-[0.98] text-white text-xs sm:text-sm font-semibold shadow-xs transition-all"
+              href={proxyUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="min-h-[44px] inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-[#eff4ff] hover:bg-[#F3E8FF] text-slate-700 hover:text-[#6B21A8] text-xs font-semibold border border-slate-200 transition-all active:scale-95"
+              title="Open PDF in Fullscreen Tab"
+            >
+              <ExternalLink className="w-4 h-4 text-[#7C3AED]" />
+              <span className="hidden sm:inline">Fullscreen</span>
+            </a>
+
+            {/* Direct Download Button */}
+            <a
+              href={pdfUrl}
+              download={downloadFileName}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="min-h-[44px] inline-flex items-center justify-center gap-2 px-4 sm:px-5 py-2.5 rounded-xl bg-[#7C3AED] hover:bg-[#6B21A8] active:scale-[0.98] text-white text-xs sm:text-sm font-semibold shadow-xs transition-all"
             >
               <Download className="w-4 h-4" />
-              <span>Download File</span>
+              <span>Download PDF</span>
             </a>
           </div>
         </div>
 
-        {/* 2. Reader Controls Toolbar (Mobile-First Touch Target Optimizations) */}
-        <div className="w-full bg-[#eff4ff]/90 backdrop-blur-md px-3 sm:px-6 py-2 flex items-center justify-between border-t border-slate-200 text-xs sm:text-sm gap-2 overflow-x-auto">
-          {/* Page Selector & Navigation (min 44x44px touch targets) */}
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            <button
-              disabled={currentPage <= 1 || loading}
-              onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
-              className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl bg-white hover:bg-[#F3E8FF] text-slate-700 hover:text-[#6B21A8] disabled:opacity-30 disabled:pointer-events-none transition-all shadow-2xs border border-slate-200 flex items-center justify-center active:scale-95"
-              aria-label="Previous Page"
-              title="Previous Page"
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-
-            <div className="h-11 min-h-[44px] flex items-center bg-white rounded-xl px-3 sm:px-4 shadow-2xs border border-slate-200 text-xs font-semibold select-none">
-              <span className="text-[#6B21A8] font-bold text-sm sm:text-xs">{currentPage}</span>
-              <span className="mx-1.5 text-slate-400">/</span>
-              <span className="text-slate-600">{totalPages || 1}</span>
-            </div>
-
-            <button
-              disabled={currentPage >= totalPages || loading}
-              onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
-              className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl bg-white hover:bg-[#F3E8FF] text-slate-700 hover:text-[#6B21A8] disabled:opacity-30 disabled:pointer-events-none transition-all shadow-2xs border border-slate-200 flex items-center justify-center active:scale-95"
-              aria-label="Next Page"
-              title="Next Page"
-            >
-              <ChevronRight className="w-5 h-5" />
-            </button>
-          </div>
-
-          {/* Desktop/Tablet Mobile Tag */}
-          <div className="hidden lg:flex items-center gap-1.5 text-xs text-slate-500">
-            <Smartphone className="w-3.5 h-3.5 text-[#7C3AED]" />
-            <span>Mobile Canvas Auto-Scaled • Pinch to Zoom Enabled</span>
-          </div>
-
-          {/* Zoom Controls (min 44x44px touch targets) */}
-          <div className="flex items-center gap-2 shrink-0">
-            <div className="flex items-center bg-white rounded-xl shadow-2xs border border-slate-200 overflow-hidden">
+        {/* 2. Reader Controls Toolbar for Canvas Mode */}
+        {renderMode === 'canvas' && (
+          <div className="w-full bg-[#eff4ff]/90 backdrop-blur-md px-3 sm:px-6 py-2 flex items-center justify-between border-t border-slate-200 text-xs sm:text-sm gap-2 overflow-x-auto">
+            {/* Page Navigation */}
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
               <button
-                disabled={zoomMultiplier <= 0.6}
-                onClick={() => setZoomMultiplier((s) => Number(Math.max(s - 0.2, 0.6).toFixed(2)))}
-                className="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-[#F3E8FF] text-slate-600 hover:text-[#6B21A8] disabled:opacity-30 transition-colors active:scale-95"
-                aria-label="Zoom Out"
-                title="Zoom Out"
+                disabled={currentPage <= 1 || loading}
+                onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl bg-white hover:bg-[#F3E8FF] text-slate-700 hover:text-[#6B21A8] disabled:opacity-30 disabled:pointer-events-none transition-all shadow-2xs border border-slate-200 flex items-center justify-center active:scale-95"
+                aria-label="Previous Page"
+                title="Previous Page"
               >
-                <ZoomOut className="w-4 h-4" />
+                <ChevronLeft className="w-5 h-5" />
               </button>
-              <span className="px-2 font-mono font-bold text-xs text-slate-800 min-w-[50px] text-center select-none">
-                {Math.round(zoomMultiplier * 100)}%
-              </span>
+
+              <div className="h-11 min-h-[44px] flex items-center bg-white rounded-xl px-3 sm:px-4 shadow-2xs border border-slate-200 text-xs font-semibold select-none">
+                <span className="text-[#6B21A8] font-bold text-sm sm:text-xs">{currentPage}</span>
+                <span className="mx-1.5 text-slate-400">/</span>
+                <span className="text-slate-600">{totalPages || 1}</span>
+              </div>
+
               <button
-                disabled={zoomMultiplier >= 2.5}
-                onClick={() => setZoomMultiplier((s) => Number(Math.min(s + 0.2, 2.5).toFixed(2)))}
-                className="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-[#F3E8FF] text-slate-600 hover:text-[#6B21A8] disabled:opacity-30 transition-colors active:scale-95"
-                aria-label="Zoom In"
-                title="Zoom In"
+                disabled={currentPage >= totalPages || loading}
+                onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl bg-white hover:bg-[#F3E8FF] text-slate-700 hover:text-[#6B21A8] disabled:opacity-30 disabled:pointer-events-none transition-all shadow-2xs border border-slate-200 flex items-center justify-center active:scale-95"
+                aria-label="Next Page"
+                title="Next Page"
               >
-                <ZoomIn className="w-4 h-4" />
+                <ChevronRight className="w-5 h-5" />
               </button>
             </div>
 
-            <button
-              onClick={() => setZoomMultiplier(1.0)}
-              className="min-h-[44px] px-3.5 rounded-xl bg-white hover:bg-[#F3E8FF] hover:text-[#6B21A8] text-xs font-semibold text-slate-700 border border-slate-200 transition-colors hidden sm:flex items-center justify-center shadow-2xs"
-            >
-              Fit Width
-            </button>
+            {/* Mobile Tag */}
+            <div className="hidden lg:flex items-center gap-1.5 text-xs text-slate-500">
+              <Smartphone className="w-3.5 h-3.5 text-[#7C3AED]" />
+              <span>Canvas Auto-Scaled • Pinch to Zoom Enabled</span>
+            </div>
+
+            {/* Zoom Controls */}
+            <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center bg-white rounded-xl shadow-2xs border border-slate-200 overflow-hidden">
+                <button
+                  disabled={zoomMultiplier <= 0.6}
+                  onClick={() => setZoomMultiplier((s) => Number(Math.max(s - 0.2, 0.6).toFixed(2)))}
+                  className="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-[#F3E8FF] text-slate-600 hover:text-[#6B21A8] disabled:opacity-30 transition-colors active:scale-95"
+                  aria-label="Zoom Out"
+                  title="Zoom Out"
+                >
+                  <ZoomOut className="w-4 h-4" />
+                </button>
+                <span className="px-2 font-mono font-bold text-xs text-slate-800 min-w-[50px] text-center select-none">
+                  {Math.round(zoomMultiplier * 100)}%
+                </span>
+                <button
+                  disabled={zoomMultiplier >= 2.5}
+                  onClick={() => setZoomMultiplier((s) => Number(Math.min(s + 0.2, 2.5).toFixed(2)))}
+                  className="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-[#F3E8FF] text-slate-600 hover:text-[#6B21A8] disabled:opacity-30 transition-colors active:scale-95"
+                  aria-label="Zoom In"
+                  title="Zoom In"
+                >
+                  <ZoomIn className="w-4 h-4" />
+                </button>
+              </div>
+
+              <button
+                onClick={() => setZoomMultiplier(1.0)}
+                className="min-h-[44px] px-3.5 rounded-xl bg-white hover:bg-[#F3E8FF] hover:text-[#6B21A8] text-xs font-semibold text-slate-700 border border-slate-200 transition-colors hidden sm:flex items-center justify-center shadow-2xs"
+              >
+                Fit Width
+              </button>
+            </div>
           </div>
-        </div>
+        )}
       </section>
 
-      {/* 3. Main Canvas Viewport Area with Smooth Vertical Scrolling and Touch Pinch-to-Zoom */}
-      <main
-        ref={containerRef}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        className="w-full flex-1 flex flex-col items-center justify-start p-2 sm:p-6 lg:p-8 overflow-y-auto overscroll-contain touch-pan-y"
-        style={{ WebkitOverflowScrolling: 'touch' }}
-      >
-        {/* Loading Spinner */}
-        {loading && (
-          <div className="flex flex-col items-center gap-3 py-20 text-[#6B21A8]">
-            <Loader2 className="w-10 h-10 animate-spin text-[#7C3AED]" />
-            <p className="font-['Montserrat',sans-serif] font-bold text-sm">
-              Rendering Canvas Preview via Mozilla PDF.js...
-            </p>
-            <p className="text-xs text-slate-400">
-              Auto-scaled to 100% viewport width • Pinch to zoom enabled
-            </p>
+      {/* 3. Main Viewport Area */}
+      {renderMode === 'embedded' ? (
+        /* Native Browser Embedded PDF Viewport */
+        <main className="w-full max-w-7xl flex-1 flex flex-col items-center justify-start p-2 sm:p-6 lg:p-8">
+          <div className="w-full bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden flex flex-col min-h-[80vh] sm:min-h-[85vh]">
+            <iframe
+              src={proxyUrl}
+              className="w-full flex-1 min-h-[80vh] sm:min-h-[85vh] border-0 rounded-2xl"
+              title={`${title} - PDF Reader`}
+            />
           </div>
-        )}
-
-        {/* Error Fallback Box */}
-        {errorMsg && !loading && (
-          <div className="bg-white border border-rose-200 rounded-2xl p-6 sm:p-8 max-w-lg text-center shadow-md my-8 sm:my-10">
-            <AlertCircle className="w-10 h-10 text-rose-500 mx-auto mb-3" />
-            <h3 className="font-['Montserrat',sans-serif] text-base font-bold text-slate-800 mb-2">
-              Preview Notice
-            </h3>
-            <p className="text-xs sm:text-sm text-slate-600 mb-6 leading-relaxed">
-              {errorMsg}
-            </p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-              <button
-                onClick={() => setActiveUrl('/sample-past-question.pdf')}
-                className="w-full sm:w-auto min-h-[44px] px-5 py-2.5 bg-[#7C3AED] hover:bg-[#6B21A8] text-white text-xs font-semibold rounded-xl transition-colors"
-              >
-                Load Bundled Sample PDF
-              </button>
-              <a
-                href={activeUrl}
-                download
-                className="w-full sm:w-auto min-h-[44px] px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-colors flex items-center justify-center"
-              >
-                Download PDF
-              </a>
-            </div>
+          <div className="mt-3 text-center text-xs text-slate-500 flex items-center gap-2">
+            <span>Powered by Native Browser PDF Engine</span>
+            <span>•</span>
+            <a href={proxyUrl} target="_blank" rel="noopener noreferrer" className="text-[#7C3AED] hover:underline font-semibold">
+              Open Fullscreen
+            </a>
           </div>
-        )}
-
-        {/* The Standard HTML5 Canvas Element - 100% Width Scaled on Mobile */}
-        <div
-          className={`relative bg-white rounded-xl sm:rounded-2xl shadow-lg sm:shadow-xl border border-slate-200/90 overflow-hidden transition-shadow duration-200 max-w-full ${
-            loading ? 'hidden' : 'block'
-          }`}
-          style={{ touchAction: 'pan-y pinch-zoom' }}
+        </main>
+      ) : (
+        /* Mozilla PDF.js Canvas Viewport with Touch Pinch-to-Zoom */
+        <main
+          ref={containerRef}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          className="w-full flex-1 flex flex-col items-center justify-start p-2 sm:p-6 lg:p-8 overflow-y-auto overscroll-contain touch-pan-y"
+          style={{ WebkitOverflowScrolling: 'touch' }}
         >
-          {rendering && (
-            <div className="absolute inset-0 bg-white/60 backdrop-blur-xs flex items-center justify-center z-10">
-              <Loader2 className="w-6 h-6 animate-spin text-[#7C3AED]" />
+          {loading && (
+            <div className="flex flex-col items-center gap-3 py-20 text-[#6B21A8]">
+              <Loader2 className="w-10 h-10 animate-spin text-[#7C3AED]" />
+              <p className="font-['Montserrat',sans-serif] font-bold text-sm">
+                Rendering PDF Document Preview...
+              </p>
+              <p className="text-xs text-slate-400">
+                Auto-scaled to 100% viewport width • Pinch to zoom enabled
+              </p>
             </div>
           )}
-          <canvas
-            ref={canvasRef}
-            className="block max-w-full mx-auto select-none"
-          />
-        </div>
 
-        {/* Canvas Footer Stamp & Mobile Gesture Hint */}
-        {!loading && !errorMsg && (
-          <div className="mt-4 pb-6 text-center text-xs text-slate-400 space-y-1">
-            <p>Rendered with Mozilla PDF.js • Page {currentPage} of {totalPages}</p>
-            <p className="sm:hidden text-[11px] text-slate-400">
-              Pinch with two fingers to zoom in/out • Swipe vertically to scroll
-            </p>
+          {errorMsg && !loading && (
+            <div className="bg-white border border-rose-200 rounded-2xl p-6 sm:p-8 max-w-lg text-center shadow-md my-8 sm:my-10">
+              <AlertCircle className="w-10 h-10 text-rose-500 mx-auto mb-3" />
+              <h3 className="font-['Montserrat',sans-serif] text-base font-bold text-slate-800 mb-2">
+                Preview Notice
+              </h3>
+              <p className="text-xs sm:text-sm text-slate-600 mb-6 leading-relaxed">
+                {errorMsg}
+              </p>
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                <button
+                  onClick={() => setRenderMode('embedded')}
+                  className="w-full sm:w-auto min-h-[44px] px-5 py-2.5 bg-[#7C3AED] hover:bg-[#6B21A8] text-white text-xs font-semibold rounded-xl transition-colors"
+                >
+                  Switch to Native Reader
+                </button>
+                <a
+                  href={pdfUrl}
+                  download={downloadFileName}
+                  className="w-full sm:w-auto min-h-[44px] px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-colors flex items-center justify-center"
+                >
+                  Download PDF
+                </a>
+              </div>
+            </div>
+          )}
+
+          {/* HTML5 Canvas Element */}
+          <div
+            className={`relative bg-white rounded-xl sm:rounded-2xl shadow-lg sm:shadow-xl border border-slate-200/90 overflow-hidden transition-shadow duration-200 max-w-full ${
+              loading ? 'hidden' : 'block'
+            }`}
+            style={{ touchAction: 'pan-y pinch-zoom' }}
+          >
+            {rendering && (
+              <div className="absolute inset-0 bg-white/60 backdrop-blur-xs flex items-center justify-center z-10">
+                <Loader2 className="w-6 h-6 animate-spin text-[#7C3AED]" />
+              </div>
+            )}
+            <canvas
+              ref={canvasRef}
+              className="block max-w-full mx-auto select-none"
+            />
           </div>
-        )}
-      </main>
+
+          {!loading && !errorMsg && (
+            <div className="mt-4 pb-6 text-center text-xs text-slate-400 space-y-1">
+              <p>Rendered with Mozilla PDF.js • Page {currentPage} of {totalPages}</p>
+              <p className="sm:hidden text-[11px] text-slate-400">
+                Pinch with two fingers to zoom in/out • Swipe vertically to scroll
+              </p>
+            </div>
+          )}
+        </main>
+      )}
     </div>
   );
 }

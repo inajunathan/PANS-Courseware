@@ -54,7 +54,24 @@ export function normalizeDbCourse(
   const leadLecturer = row.lead_lecturer || row.lecturer || slides[0]?.lecturer || localFallback?.leadLecturer || 'Faculty Lecturers';
   const pdfStorageUrl = row.pdf_storage_url || row.pdf_url || row.pdfUrl || localFallback?.pdf_storage_url;
 
-  const combinedUnits = slides.length > 0 ? slides : (localFallback?.lectureUnits || []);
+  let combinedUnits = slides.length > 0 ? [...slides] : (localFallback?.lectureUnits ? [...localFallback.lectureUnits] : []);
+
+  // If a pdfStorageUrl exists on the course row, ensure it is represented as a unit
+  // so students and lecturers can see, read, and download it!
+  if (pdfStorageUrl && !combinedUnits.some((u) => u.pdfUrl === pdfStorageUrl)) {
+    combinedUnits.unshift({
+      id: `${code.toLowerCase().replace(/[^a-z0-9]/g, '-')}-syllabus-pdf`,
+      unitNumber: 1,
+      title: `${code}: Official Course Material & Lecture Slides`,
+      lecturer: leadLecturer,
+      totalPages: 24,
+      fileSize: '9.5 MB',
+      pdfUrl: pdfStorageUrl,
+      dateUploaded: row.created_at ? new Date(row.created_at).toLocaleDateString() : 'Recent',
+      isVerified: true,
+    });
+  }
+
   const pdfCount = combinedUnits.length > 0 ? combinedUnits.length : (pdfStorageUrl ? 1 : (localFallback?.pdfCount || 0));
 
   return {
@@ -342,6 +359,54 @@ export async function fetchLectureUnitById(unitId: string): Promise<UnitWithCour
         };
 
         return { unit, course: fallbackCourse };
+      }
+
+      // Check if unitId is a course UUID with pdf_storage_url
+      const { data: courseById } = await supabase
+        .from('courses')
+        .select('*')
+        .eq('id', unitId)
+        .maybeSingle();
+
+      if (courseById && courseById.pdf_storage_url) {
+        const parentCourse = normalizeDbCourse(courseById, []);
+        const unit: LectureUnit = {
+          id: unitId,
+          unitNumber: 1,
+          title: `${parentCourse.code}: Official Course Material & Lecture Slides`,
+          lecturer: parentCourse.leadLecturer,
+          totalPages: 24,
+          fileSize: '9.5 MB',
+          pdfUrl: courseById.pdf_storage_url,
+          dateUploaded: courseById.created_at ? new Date(courseById.created_at).toLocaleDateString() : 'Recent',
+          isVerified: true,
+        };
+        return { unit, course: parentCourse };
+      }
+
+      // Check if unitId refers to a course-level syllabus PDF (e.g. "pch-401-syllabus-pdf" or course code slug)
+      const possibleCourseCode = cleanId.replace(/-syllabus-pdf$/, '').replace(/-/g, ' ');
+      const possibleCodeNoSpaces = possibleCourseCode.replace(/\s+/g, '');
+      const { data: courseRow } = await supabase
+        .from('courses')
+        .select('*')
+        .or(`course_code.ilike.%${possibleCourseCode}%,course_code.ilike.%${possibleCodeNoSpaces}%`)
+        .maybeSingle();
+
+      if (courseRow && courseRow.pdf_storage_url) {
+        const parentCourse = normalizeDbCourse(courseRow, []);
+        const unit: LectureUnit = {
+          id: cleanId,
+          unitNumber: 1,
+          title: `${parentCourse.code}: Official Course Material & Lecture Slides`,
+          lecturer: parentCourse.leadLecturer,
+          totalPages: 24,
+          fileSize: '9.5 MB',
+          pdfUrl: courseRow.pdf_storage_url,
+          dateUploaded: courseRow.created_at ? new Date(courseRow.created_at).toLocaleDateString() : 'Recent',
+          isVerified: true,
+        };
+        return { unit, course: parentCourse };
       }
     } catch (err) {
       console.warn('Supabase fetchLectureUnitById error, checking local fallback:', err);

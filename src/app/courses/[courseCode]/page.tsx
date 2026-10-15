@@ -11,19 +11,10 @@ import { coursesData } from '@/data/coursesData';
 import { ArrowLeft, BookOpen } from 'lucide-react';
 
 /**
- * Incremental Static Regeneration (ISR) configuration
- * Revalidates every 86400 seconds (24 hours).
- * This ensures thousands of course syllabus variations and curriculum guides
- * are statically cached on Vercel's Edge/Hobby tier, eliminating continuous
- * database queries and providing instant loads for students.
+ * Force-dynamic: Guarantees every course syllabus page reflects
+ * newly uploaded PDF slide decks and past questions instantly.
  */
-export const revalidate = 86400;
-
-/**
- * Dynamic params set to true: pages not pre-rendered at build time
- * will be generated on-demand and cached statically for subsequent requests.
- */
-export const dynamicParams = true;
+export const dynamic = 'force-dynamic';
 
 /**
  * Pre-generate static routes at build time for existing courses.
