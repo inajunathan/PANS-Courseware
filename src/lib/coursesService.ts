@@ -1,6 +1,6 @@
 import { supabase, isSupabaseConfigured } from './supabase';
 import { coursesData } from '@/data/coursesData';
-import { Course, LectureUnit, AcademicLevel } from '@/types';
+import { Course, LectureUnit, AcademicLevel, Semester, Specialization } from '@/types';
 
 export interface DbCourseSlide {
   id: string;
@@ -26,7 +26,7 @@ function normalizeCodeKey(code: string): string {
  * Extracts academic level string (100-600) from course code digits
  */
 function extractLevelFromCode(code: string): AcademicLevel {
-  const match = code.match(/([1-6])\d{2}/);
+  const match = (code || '').match(/([1-6])\d{2}/);
   if (match) {
     return `${match[1]}00` as AcademicLevel;
   }
@@ -34,106 +34,140 @@ function extractLevelFromCode(code: string): AcademicLevel {
 }
 
 /**
- * Fetches all courses from Supabase 'courses' table joined with 'course_slides',
- * merging seamlessly with local curriculum data so that any courses and slide PDFs
- * uploaded to Supabase immediately appear on the live site.
+ * Normalizes any database row (whether using course_code/code/title/name) to standard Course object
+ */
+export function normalizeDbCourse(
+  row: any,
+  slides: LectureUnit[] = [],
+  localFallback?: Course
+): Course {
+  const code = (row.course_code || row.code || row.courseCode || localFallback?.code || 'PCH 401').trim();
+  const title = (row.course_title || row.title || row.courseTitle || row.name || localFallback?.title || code).trim();
+  const department = (row.department || row.dept || localFallback?.department || 'Faculty of Pharmacy').trim();
+  const level: AcademicLevel = row.level 
+    ? (String(row.level).replace(/L$/i, '') as AcademicLevel)
+    : (localFallback?.level ?? extractLevelFromCode(code));
+  const semester: Semester = (row.semester || localFallback?.semester || 'First') as Semester;
+  const units = Number(row.units || row.credit_units || row.creditUnits || localFallback?.units || 3);
+  const specialization = (row.specialization || department || localFallback?.specialization || 'Core Professional') as Specialization;
+  const description = row.description || localFallback?.description || `Curriculum materials, official lecture slides, and examination archive for ${code} - ${title}.`;
+  const leadLecturer = row.lead_lecturer || row.lecturer || slides[0]?.lecturer || localFallback?.leadLecturer || 'Faculty Lecturers';
+  const pdfStorageUrl = row.pdf_storage_url || row.pdf_url || row.pdfUrl || localFallback?.pdf_storage_url;
+
+  const combinedUnits = slides.length > 0 ? slides : (localFallback?.lectureUnits || []);
+  const pdfCount = combinedUnits.length > 0 ? combinedUnits.length : (pdfStorageUrl ? 1 : (localFallback?.pdfCount || 0));
+
+  return {
+    id: localFallback ? localFallback.id : code.toLowerCase().replace(/\s+/g, '-'),
+    code,
+    title,
+    level,
+    semester,
+    units,
+    specialization,
+    description,
+    leadLecturer,
+    department,
+    pdfCount,
+    pqCount: localFallback?.pqCount ?? 0,
+    tutorialCount: localFallback?.tutorialCount ?? 0,
+    pdf_storage_url: pdfStorageUrl,
+    lectureUnits: combinedUnits,
+  };
+}
+
+/**
+ * Fetches all courses from Supabase 'courses' table, merging with slide decks
+ * and graceful fallback to local data.
+ * Also queries the server /api/courses fallback if client-side inlined env vars are absent.
  */
 export async function fetchAllCourses(): Promise<Course[]> {
-  if (!isSupabaseConfigured) {
-    return coursesData;
+  // 1. Direct Supabase Query (when configured)
+  if (isSupabaseConfigured) {
+    try {
+      const { data: dbCourses, error } = await supabase
+        .from('courses')
+        .select('*');
+
+      if (error) {
+        console.error('❌ Supabase "courses" query returned an error:', error.message, error.details, error.hint);
+      } else if (dbCourses && dbCourses.length > 0) {
+        console.log(`✅ Loaded ${dbCourses.length} courses directly from Supabase`);
+
+        // Fetch slide units safely (doesn't block courses if table not yet created)
+        const slidesByCourse = new Map<string, LectureUnit[]>();
+        try {
+          const { data: slides, error: sErr } = await supabase
+            .from('course_slides')
+            .select('*');
+
+          if (!sErr && slides && slides.length > 0) {
+            for (const s of slides) {
+              const cid = String(s.course_id || s.courseId || s.course_code || '').toLowerCase().trim();
+              if (!slidesByCourse.has(cid)) slidesByCourse.set(cid, []);
+              slidesByCourse.get(cid)!.push({
+                id: s.id,
+                unitNumber: s.unit_number || s.unitNumber || 1,
+                title: s.title || `Unit ${s.unit_number || 1}`,
+                lecturer: s.lecturer || 'Faculty Lecturer',
+                totalPages: s.total_pages || s.totalPages || 20,
+                fileSize: s.file_size || s.fileSize || '8.0 MB',
+                pdfUrl: s.pdf_url || s.pdfUrl,
+                dateUploaded: s.created_at ? new Date(s.created_at).toLocaleDateString() : 'Recent',
+                isVerified: s.is_verified ?? true,
+              });
+            }
+          }
+        } catch (sEx) {
+          console.warn('Optional course_slides query skipped:', sEx);
+        }
+
+        // Build lookup map seeded with local static courses
+        const courseMap = new Map<string, Course>();
+        for (const local of coursesData) {
+          courseMap.set(normalizeCodeKey(local.code), { ...local });
+        }
+
+        // Merge Supabase courses
+        for (const dbCourse of dbCourses) {
+          const code = dbCourse.course_code || dbCourse.code || '';
+          const key = normalizeCodeKey(code);
+          const existing = courseMap.get(key);
+
+          // Find slides matching by id or course_code
+          const courseSlides = slidesByCourse.get(String(dbCourse.id).toLowerCase()) ||
+            slidesByCourse.get(key) ||
+            [];
+          courseSlides.sort((a, b) => a.unitNumber - b.unitNumber);
+
+          const merged = normalizeDbCourse(dbCourse, courseSlides, existing);
+          courseMap.set(key, merged);
+        }
+
+        return Array.from(courseMap.values());
+      } else {
+        console.warn('⚠️ Supabase "courses" table query returned 0 rows. Check RLS SELECT policy in Supabase SQL editor.');
+      }
+    } catch (err) {
+      console.error('❌ Supabase direct fetchAllCourses exception:', err);
+    }
   }
 
-  try {
-    const { data: dbCourses, error } = await supabase
-      .from('courses')
-      .select(`
-        id,
-        course_code,
-        course_title,
-        department,
-        pdf_storage_url,
-        created_at,
-        course_slides (
-          id,
-          unit_number,
-          title,
-          lecturer,
-          pdf_url,
-          total_pages,
-          file_size,
-          is_verified,
-          created_at
-        )
-      `)
-      .order('course_code', { ascending: true });
-
-    if (!error && dbCourses && dbCourses.length > 0) {
-      // Build lookup map seeded with local static courses
-      const courseMap = new Map<string, Course>();
-      for (const local of coursesData) {
-        courseMap.set(normalizeCodeKey(local.code), { ...local });
-      }
-
-      // Merge Supabase courses into the map
-      for (const dbCourse of dbCourses) {
-        const key = normalizeCodeKey(dbCourse.course_code);
-        const existing = courseMap.get(key);
-
-        const slides: LectureUnit[] = (dbCourse.course_slides || []).map((s: any) => ({
-          id: s.id,
-          unitNumber: s.unit_number,
-          title: s.title,
-          lecturer: s.lecturer || 'Faculty Lecturer',
-          totalPages: s.total_pages || 20,
-          fileSize: s.file_size || '8.0 MB',
-          pdfUrl: s.pdf_url || dbCourse.pdf_storage_url,
-          dateUploaded: s.created_at ? new Date(s.created_at).toLocaleDateString() : 'Recent',
-          isVerified: s.is_verified ?? true,
-        }));
-
-        slides.sort((a, b) => a.unitNumber - b.unitNumber);
-
-        if (existing) {
-          // Update existing course with Supabase data
-          const combinedUnits = slides.length > 0 ? slides : existing.lectureUnits;
-          courseMap.set(key, {
-            ...existing,
-            id: existing.id || dbCourse.id,
-            title: dbCourse.course_title || existing.title,
-            department: dbCourse.department || existing.department,
-            pdf_storage_url: dbCourse.pdf_storage_url || existing.pdf_storage_url,
-            lectureUnits: combinedUnits,
-            pdfCount: combinedUnits.length > 0 ? combinedUnits.length : (dbCourse.pdf_storage_url ? 1 : existing.pdfCount),
-          });
-        } else {
-          // Brand new course uploaded to Supabase that is not in local seed
-          const level = extractLevelFromCode(dbCourse.course_code);
-          const slug = dbCourse.course_code.toLowerCase().replace(/\s+/g, '-');
-          
-          courseMap.set(key, {
-            id: slug,
-            code: dbCourse.course_code,
-            title: dbCourse.course_title || dbCourse.course_code,
-            level: level,
-            semester: 'First',
-            units: 3,
-            specialization: dbCourse.department || 'Core Professional',
-            description: `Curriculum materials, official lecture slides, and examination archive for ${dbCourse.course_code} - ${dbCourse.course_title}.`,
-            leadLecturer: slides[0]?.lecturer || 'Faculty Lecturers',
-            department: dbCourse.department || 'Faculty of Pharmacy',
-            pdfCount: slides.length > 0 ? slides.length : (dbCourse.pdf_storage_url ? 1 : 0),
-            pqCount: 0,
-            tutorialCount: 0,
-            pdf_storage_url: dbCourse.pdf_storage_url,
-            lectureUnits: slides,
-          });
+  // 2. Client-side fetch to server route /api/courses if running in the browser
+  // This allows the server to query Supabase (bypassing missing browser inlined env vars or CORS)
+  if (typeof window !== 'undefined') {
+    try {
+      const res = await fetch('/api/courses');
+      if (res.ok) {
+        const json = await res.json();
+        if (json.courses && json.courses.length > 0 && json.fromDatabase) {
+          console.log(`✅ Loaded ${json.courses.length} courses from /api/courses server endpoint`);
+          return json.courses;
         }
       }
-
-      return Array.from(courseMap.values());
+    } catch (apiErr) {
+      // Ignore API route error, proceed to fallback
     }
-  } catch (err) {
-    console.warn('Supabase fetchAllCourses error, using local fallback:', err);
   }
 
   return coursesData;
@@ -160,68 +194,46 @@ export async function fetchCourseByCode(courseCode: string): Promise<Course | nu
 
   try {
     const cleanCode = local ? local.code : courseCode.replace(/-/g, ' ');
+    const codeNoSpaces = cleanCode.replace(/\s+/g, '');
+
+    // Select without restrictive nested joins so it never fails on relation cache
     const { data: dbCourse, error } = await supabase
       .from('courses')
-      .select(`
-        id,
-        course_code,
-        course_title,
-        department,
-        pdf_storage_url,
-        course_slides (
-          id,
-          unit_number,
-          title,
-          lecturer,
-          pdf_url,
-          total_pages,
-          file_size,
-          is_verified,
-          created_at
-        )
-      `)
-      .or(`course_code.ilike.%${cleanCode}%,course_code.ilike.%${courseCode.replace(/-/g, '')}%`)
+      .select('*')
+      .or(`course_code.ilike.%${cleanCode}%,course_code.ilike.%${codeNoSpaces}%`)
       .maybeSingle();
 
     if (!error && dbCourse) {
-      const slides: LectureUnit[] = (dbCourse.course_slides || []).map((s: any) => ({
-        id: s.id,
-        unitNumber: s.unit_number,
-        title: s.title,
-        lecturer: s.lecturer || 'Faculty Lecturer',
-        totalPages: s.total_pages || 20,
-        fileSize: s.file_size || '8.0 MB',
-        pdfUrl: s.pdf_url || dbCourse.pdf_storage_url,
-        dateUploaded: s.created_at ? new Date(s.created_at).toLocaleDateString() : 'Recent',
-        isVerified: s.is_verified ?? true,
-      }));
+      // Fetch slide units for this course
+      let slides: LectureUnit[] = [];
+      try {
+        const { data: slidesData, error: sErr } = await supabase
+          .from('course_slides')
+          .select('*')
+          .eq('course_id', dbCourse.id)
+          .order('unit_number', { ascending: true });
 
-      // Sort slides by unit number
-      slides.sort((a, b) => a.unitNumber - b.unitNumber);
+        if (!sErr && slidesData) {
+          slides = slidesData.map((s: any) => ({
+            id: s.id,
+            unitNumber: s.unit_number || 1,
+            title: s.title || `Unit ${s.unit_number || 1}`,
+            lecturer: s.lecturer || 'Faculty Lecturer',
+            totalPages: s.total_pages || 20,
+            fileSize: s.file_size || '8.0 MB',
+            pdfUrl: s.pdf_url || dbCourse.pdf_storage_url,
+            dateUploaded: s.created_at ? new Date(s.created_at).toLocaleDateString() : 'Recent',
+            isVerified: s.is_verified ?? true,
+          }));
+        }
+      } catch (sEx) {
+        console.warn('Optional course_slides by course_id query:', sEx);
+      }
 
-      const combinedUnits = slides.length > 0 ? slides : (local?.lectureUnits || []);
-      const level = local?.level ?? extractLevelFromCode(dbCourse.course_code);
-
-      return {
-        id: local ? local.id : dbCourse.course_code.toLowerCase().replace(/\s+/g, '-'),
-        code: dbCourse.course_code || (local?.code ?? courseCode),
-        title: dbCourse.course_title || (local?.title ?? courseCode),
-        level: level,
-        semester: local?.semester ?? 'First',
-        units: local?.units ?? 3,
-        specialization: local?.specialization ?? 'Core Professional',
-        description: local?.description ?? `Official lecture slides and verified syllabus for ${dbCourse.course_code}.`,
-        leadLecturer: slides[0]?.lecturer || local?.leadLecturer || 'Faculty Lecturers',
-        department: dbCourse.department || (local?.department ?? 'Faculty of Pharmacy'),
-        pdfCount: combinedUnits.length > 0 ? combinedUnits.length : (dbCourse.pdf_storage_url ? 1 : 0),
-        pqCount: local?.pqCount ?? 0,
-        tutorialCount: local?.tutorialCount ?? 0,
-        pdf_storage_url: dbCourse.pdf_storage_url,
-        lectureUnits: combinedUnits,
-      };
+      return normalizeDbCourse(dbCourse, slides, local);
     }
   } catch (err) {
-    console.warn('Supabase course fetch error, using local fallback:', err);
+    console.warn('Supabase fetchCourseByCode error, using local fallback:', err);
   }
 
   return local || null;
@@ -243,63 +255,57 @@ export async function fetchLectureUnitById(unitId: string): Promise<UnitWithCour
     try {
       const { data: slideRow, error } = await supabase
         .from('course_slides')
-        .select(`
-          id,
-          unit_number,
-          title,
-          lecturer,
-          pdf_url,
-          total_pages,
-          file_size,
-          is_verified,
-          created_at,
-          courses (
-            id,
-            course_code,
-            course_title,
-            department,
-            pdf_storage_url
-          )
-        `)
+        .select('*')
         .eq('id', unitId)
         .maybeSingle();
 
       if (!error && slideRow) {
-        const dbCourse = Array.isArray(slideRow.courses) ? slideRow.courses[0] : slideRow.courses;
-        const courseCode = dbCourse?.course_code || 'PCH 401';
+        let parentCourse: Course | null = null;
+        if (slideRow.course_id) {
+          const { data: courseRow } = await supabase
+            .from('courses')
+            .select('*')
+            .eq('id', slideRow.course_id)
+            .maybeSingle();
+          if (courseRow) {
+            parentCourse = normalizeDbCourse(courseRow, []);
+          }
+        }
+
+        const courseCode = parentCourse?.code || 'PCH 401';
         const level = extractLevelFromCode(courseCode);
 
-        const parentCourse: Course = {
+        const fallbackCourse: Course = parentCourse || {
           id: courseCode.toLowerCase().replace(/\s+/g, '-'),
           code: courseCode,
-          title: dbCourse?.course_title || courseCode,
+          title: courseCode,
           level: level,
           semester: 'First',
           units: 3,
-          specialization: dbCourse?.department || 'Faculty of Pharmacy',
+          specialization: 'Core Professional',
           description: `Verified course syllabus for ${courseCode}.`,
           leadLecturer: slideRow.lecturer || 'Faculty Lecturer',
-          department: dbCourse?.department || 'Faculty of Pharmacy',
+          department: 'Faculty of Pharmacy',
           pdfCount: 1,
           pqCount: 0,
           tutorialCount: 0,
-          pdf_storage_url: dbCourse?.pdf_storage_url,
+          pdf_storage_url: slideRow.pdf_url,
           lectureUnits: [],
         };
 
         const unit: LectureUnit = {
           id: slideRow.id,
-          unitNumber: slideRow.unit_number,
-          title: slideRow.title,
-          lecturer: slideRow.lecturer,
+          unitNumber: slideRow.unit_number || 1,
+          title: slideRow.title || 'Lecture Slides',
+          lecturer: slideRow.lecturer || 'Faculty Lecturer',
           totalPages: slideRow.total_pages || 28,
           fileSize: slideRow.file_size || '8.4 MB',
-          pdfUrl: slideRow.pdf_url || dbCourse?.pdf_storage_url,
+          pdfUrl: slideRow.pdf_url || fallbackCourse.pdf_storage_url,
           dateUploaded: slideRow.created_at ? new Date(slideRow.created_at).toLocaleDateString() : 'Recent',
           isVerified: slideRow.is_verified ?? true,
         };
 
-        return { unit, course: parentCourse };
+        return { unit, course: fallbackCourse };
       }
     } catch (err) {
       console.warn('Supabase fetchLectureUnitById error, checking local fallback:', err);

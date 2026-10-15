@@ -50,66 +50,45 @@ function normalizeLocalPq(pq: (typeof pastQuestionsData)[0]): DbPastQuestion {
 }
 
 /**
- * Normalizes a Supabase database row (with optional joined courses) to DbPastQuestion
+ * Normalizes a Supabase database row to DbPastQuestion
  */
-function normalizeDbRow(row: any): DbPastQuestion {
-  const course = Array.isArray(row.courses) ? row.courses[0] : row.courses;
-  const courseCode = row.course_code || course?.course_code || 'PCH 401';
-  const courseTitle = row.course_title || course?.course_title || `${courseCode} Examination Paper`;
-  const department = row.department || course?.department || 'College of Pharmacy';
+export function normalizeDbPastQuestion(row: any): DbPastQuestion {
+  const courseCode = (row.course_code || row.code || row.courseCode || 'PCH 401').trim();
+  const courseTitle = (row.course_title || row.title || row.courseTitle || `${courseCode} Examination Paper`).trim();
+  const department = (row.department || row.dept || 'College of Pharmacy').trim();
+  const academicYear = (row.academic_year || row.academicYear || row.year || row.session || '2024/2025').trim();
 
   return {
     id: String(row.id),
     course_code: courseCode,
     course_title: courseTitle,
-    academic_year: row.academic_year || '2024/2025',
+    academic_year: academicYear,
     department: department,
-    pdf_storage_url: row.pdf_storage_url || '/sample-past-question.pdf',
-    exam_type: row.exam_type || 'Examination Paper',
+    pdf_storage_url: row.pdf_storage_url || row.pdf_url || row.url || '/sample-past-question.pdf',
+    exam_type: row.exam_type || row.examType || 'Examination Paper',
     semester: row.semester || 'First',
     has_verified_solutions: row.has_verified_solutions ?? true,
-    total_pages: row.total_pages || 8,
-    file_size: row.file_size || '2.4 MB',
+    total_pages: row.total_pages || row.totalPages || 8,
+    file_size: row.file_size || row.fileSize || '2.4 MB',
     examiners: row.examiners || 'Departmental Examination Board',
-    download_count: row.download_count || 0,
+    download_count: row.download_count || row.downloadCount || 0,
     created_at: row.created_at || new Date().toISOString(),
   };
 }
 
 /**
  * Fetches past questions dynamically from Supabase `past_questions` table,
- * joined with `courses` table, with graceful fallback to local data if
- * Supabase is unconfigured or not yet populated.
+ * with graceful fallback to local data if Supabase is unconfigured or not yet populated.
  */
 export async function fetchPastQuestions(
   filters: PastQuestionFilterOptions = {}
 ): Promise<{ data: DbPastQuestion[]; fromDatabase: boolean }> {
+  // 1. Direct Supabase Query
   if (isSupabaseConfigured) {
     try {
       let query = supabase
         .from('past_questions')
-        .select(`
-          id,
-          course_code,
-          course_title,
-          academic_year,
-          department,
-          pdf_storage_url,
-          exam_type,
-          semester,
-          has_verified_solutions,
-          total_pages,
-          file_size,
-          examiners,
-          download_count,
-          created_at,
-          courses (
-            course_code,
-            course_title,
-            department
-          )
-        `)
-        .order('created_at', { ascending: false });
+        .select('*');
 
       if (filters.courseCode && filters.courseCode !== 'all') {
         const clean = filters.courseCode.trim();
@@ -143,8 +122,9 @@ export async function fetchPastQuestions(
 
       if (!error && data) {
         if (data.length > 0) {
+          console.log(`✅ Loaded ${data.length} past questions from Supabase`);
           return {
-            data: data.map(normalizeDbRow),
+            data: data.map(normalizeDbPastQuestion),
             fromDatabase: true,
           };
         } else if (
@@ -158,9 +138,45 @@ export async function fetchPastQuestions(
           // If filters are active and database returned 0 results, respect database filter
           return { data: [], fromDatabase: true };
         }
+      } else if (error) {
+        console.error('❌ Supabase past_questions error:', error.message, error.details);
       }
     } catch (err) {
       console.warn('Supabase past_questions fetch error, using local fallback:', err);
+    }
+  }
+
+  // 2. Client-side fetch to server route /api/past-questions if in browser
+  if (typeof window !== 'undefined') {
+    try {
+      const res = await fetch('/api/past-questions');
+      if (res.ok) {
+        const json = await res.json();
+        if (json.data && json.data.length > 0 && json.fromDatabase) {
+          let list: DbPastQuestion[] = json.data;
+
+          if (filters.courseCode && filters.courseCode !== 'all') {
+            const q = filters.courseCode.toLowerCase().replace(/\s+/g, '');
+            list = list.filter((p) => p.course_code.toLowerCase().replace(/\s+/g, '').includes(q));
+          }
+
+          if (filters.academicYear && filters.academicYear !== 'all') {
+            list = list.filter((p) => p.academic_year === filters.academicYear);
+          }
+
+          if (filters.semester && filters.semester !== 'all') {
+            list = list.filter((p) => p.semester === filters.semester);
+          }
+
+          if (filters.onlyVerified) {
+            list = list.filter((p) => p.has_verified_solutions);
+          }
+
+          return { data: list, fromDatabase: true };
+        }
+      }
+    } catch {
+      // Ignore API route error, proceed to fallback
     }
   }
 
@@ -219,32 +235,12 @@ export async function fetchPastQuestionById(id: string): Promise<DbPastQuestion 
     try {
       const { data, error } = await supabase
         .from('past_questions')
-        .select(`
-          id,
-          course_code,
-          course_title,
-          academic_year,
-          department,
-          pdf_storage_url,
-          exam_type,
-          semester,
-          has_verified_solutions,
-          total_pages,
-          file_size,
-          examiners,
-          download_count,
-          created_at,
-          courses (
-            course_code,
-            course_title,
-            department
-          )
-        `)
+        .select('*')
         .eq('id', cleanId)
         .maybeSingle();
 
       if (!error && data) {
-        return normalizeDbRow(data);
+        return normalizeDbPastQuestion(data);
       }
     } catch (err) {
       console.warn('Supabase get past_question by id error:', err);

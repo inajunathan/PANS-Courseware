@@ -96,6 +96,7 @@ function CoursesContent() {
 
   const [courses, setCourses] = useState<Course[]>(coursesData);
   const [loadingCourses, setLoadingCourses] = useState<boolean>(true);
+  const [isFromDatabase, setIsFromDatabase] = useState<boolean>(false);
 
   // Dynamically load live courses from Supabase
   useEffect(() => {
@@ -106,6 +107,12 @@ function CoursesContent() {
         if (isCurrent && live && live.length > 0) {
           setCourses(live);
           updateSearchIndexWithCourses(live);
+          if (
+            live.length !== coursesData.length ||
+            live.some((c) => c.pdf_storage_url || c.lectureUnits.length > 0)
+          ) {
+            setIsFromDatabase(true);
+          }
         }
       } catch (err) {
         console.warn('Failed to load live courses from Supabase:', err);
@@ -196,8 +203,26 @@ function CoursesContent() {
               </p>
             </div>
 
-            {/* Academic Snapshot Stats Widget */}
-            <div className="flex items-center gap-4 bg-white p-3.5 sm:p-4 rounded-xl shadow-xs border border-slate-200 self-start lg:self-auto">
+            {/* Academic Snapshot Stats Widget & Status */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 self-start lg:self-auto">
+              {isFromDatabase ? (
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold border border-emerald-200 shadow-2xs">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span>Live Database Connected</span>
+                </div>
+              ) : !isSupabaseConfigured ? (
+                <Link
+                  href="/api/supabase-status"
+                  target="_blank"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-semibold border border-amber-200 transition-colors shadow-2xs"
+                  title="Check Supabase connection status"
+                >
+                  <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                  <span>Database Setup • Check Status</span>
+                </Link>
+              ) : null}
+
+              <div className="flex items-center gap-4 bg-white p-3.5 sm:p-4 rounded-xl shadow-xs border border-slate-200">
               <div className="flex items-center gap-3 pr-4 border-r border-slate-200">
                 <div className="w-10 h-10 rounded-lg bg-[#F3E8FF] flex items-center justify-center text-[#6B21A8]">
                   <BookOpen className="w-5 h-5" />
@@ -223,6 +248,7 @@ function CoursesContent() {
               </div>
             </div>
           </div>
+        </div>
 
           {/* Mobile Search & Filter Action Bar (< lg) */}
           <div className="lg:hidden my-6 space-y-3">
