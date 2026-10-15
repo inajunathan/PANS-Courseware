@@ -32,19 +32,28 @@ export async function GET() {
   try {
     const { data: dbPqs, error } = await supabaseAdmin
       .from('past_questions')
-      .select('*')
-      .order('created_at', { ascending: false });
+      .select('*');
 
     if (error) {
+      const isPermissionDenied = error.code === '42501' || (error.message || '').toLowerCase().includes('permission denied');
       return NextResponse.json({
         data: [],
         fromDatabase: false,
+        permissionDenied: isPermissionDenied,
         error: error.message,
         details: error.details,
+        code: error.code,
       });
     }
 
     if (dbPqs && dbPqs.length > 0) {
+      // Sort safely by created_at or id descending
+      dbPqs.sort((a: any, b: any) => {
+        const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return dateB - dateA;
+      });
+
       return NextResponse.json({
         data: dbPqs.map(normalizeDbPastQuestion),
         fromDatabase: true,

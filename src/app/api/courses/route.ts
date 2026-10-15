@@ -18,19 +18,28 @@ export async function GET() {
   try {
     const { data: dbCourses, error } = await supabaseAdmin
       .from('courses')
-      .select('*')
-      .order('course_code', { ascending: true });
+      .select('*');
 
     if (error) {
+      const isPermissionDenied = error.code === '42501' || (error.message || '').toLowerCase().includes('permission denied');
       return NextResponse.json({
         courses: coursesData,
         fromDatabase: false,
+        permissionDenied: isPermissionDenied,
         error: error.message,
         details: error.details,
+        code: error.code,
       });
     }
 
     if (dbCourses && dbCourses.length > 0) {
+      // Sort courses safely by course_code or code in JavaScript (never throws on missing column)
+      dbCourses.sort((a: any, b: any) => {
+        const codeA = String(a.course_code || a.code || '').toUpperCase();
+        const codeB = String(b.course_code || b.code || '').toUpperCase();
+        return codeA.localeCompare(codeB);
+      });
+
       // Query slides
       let slidesByCourse = new Map<string, LectureUnit[]>();
       try {

@@ -7,7 +7,7 @@ import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import StitchSearchBar from '@/components/search/StitchSearchBar';
 import { coursesData } from '@/data/coursesData';
-import { fetchAllCourses } from '@/lib/coursesService';
+import { fetchAllCourses, fetchCoursesWithStatus } from '@/lib/coursesService';
 import { Course } from '@/types';
 import { searchCourseware, UnifiedSearchRecord, updateSearchIndexWithCourses } from '@/lib/searchService';
 import { isAlgoliaConfigured } from '@/lib/algolia';
@@ -25,7 +25,8 @@ import {
   X,
   Tag,
   Search,
-  Filter
+  Filter,
+  AlertTriangle
 } from 'lucide-react';
 
 function CoursesContent() {
@@ -97,21 +98,22 @@ function CoursesContent() {
   const [courses, setCourses] = useState<Course[]>(coursesData);
   const [loadingCourses, setLoadingCourses] = useState<boolean>(true);
   const [isFromDatabase, setIsFromDatabase] = useState<boolean>(false);
+  const [hasPermissionError, setHasPermissionError] = useState<boolean>(false);
+  const [dbCourseCount, setDbCourseCount] = useState<number>(0);
 
   // Dynamically load live courses from Supabase
   useEffect(() => {
     let isCurrent = true;
     async function loadLiveCourses() {
       try {
-        const live = await fetchAllCourses();
-        if (isCurrent && live && live.length > 0) {
-          setCourses(live);
-          updateSearchIndexWithCourses(live);
-          if (
-            live.length !== coursesData.length ||
-            live.some((c) => c.pdf_storage_url || c.lectureUnits.length > 0)
-          ) {
-            setIsFromDatabase(true);
+        const res = await fetchCoursesWithStatus();
+        if (isCurrent && res.courses && res.courses.length > 0) {
+          setCourses(res.courses);
+          updateSearchIndexWithCourses(res.courses);
+          setIsFromDatabase(res.fromDatabase);
+          if (res.count) setDbCourseCount(res.count);
+          if (res.permissionDenied) {
+            setHasPermissionError(true);
           }
         }
       } catch (err) {
@@ -210,6 +212,16 @@ function CoursesContent() {
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                   <span>Live Database Connected</span>
                 </div>
+              ) : hasPermissionError ? (
+                <Link
+                  href="/api/supabase-status"
+                  target="_blank"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-rose-50 hover:bg-rose-100 text-rose-800 text-xs font-semibold border border-rose-200 transition-colors shadow-2xs"
+                  title="Supabase permission denied (Error 42501). Click to view diagnostic report."
+                >
+                  <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
+                  <span>Permission Denied (42501) • View Fix</span>
+                </Link>
               ) : !isSupabaseConfigured ? (
                 <Link
                   href="/api/supabase-status"
@@ -248,6 +260,35 @@ function CoursesContent() {
               </div>
             </div>
           </div>
+
+          {/* Permission Notice Banner if RLS / table grants are blocking database reads */}
+          {hasPermissionError && (
+            <div className="my-6 p-4 rounded-2xl bg-amber-50/95 border border-amber-200 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in duration-200">
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center text-amber-800 shrink-0 mt-0.5">
+                  <SlidersHorizontal className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="font-semibold text-sm text-amber-950 font-['Montserrat',sans-serif]">
+                    Supabase Database Connected • Public Permissions Configuration Needed
+                  </h4>
+                  <p className="text-xs text-amber-900 mt-1 leading-relaxed">
+                    Your Supabase project is connected, but PostgreSQL permissions (Error 42501) are restricting public reads on your tables. Run the SQL permissions script in Supabase SQL Editor to unlock your database courses immediately.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                <Link
+                  href="/api/supabase-status"
+                  target="_blank"
+                  className="px-3.5 py-2 rounded-xl bg-[#7C3AED] hover:bg-[#6B21A8] text-white text-xs font-bold transition-colors shadow-xs inline-flex items-center gap-1.5"
+                >
+                  <span>View SQL Fix Script</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+            </div>
+          )}
         </div>
 
           {/* Mobile Search & Filter Action Bar (< lg) */}

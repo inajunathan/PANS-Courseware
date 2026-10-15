@@ -76,12 +76,21 @@ export function normalizeDbCourse(
   };
 }
 
+export interface FetchCoursesResult {
+  courses: Course[];
+  fromDatabase: boolean;
+  permissionDenied?: boolean;
+  error?: string;
+  count?: number;
+}
+
 /**
- * Fetches all courses from Supabase 'courses' table, merging with slide decks
- * and graceful fallback to local data.
- * Also queries the server /api/courses fallback if client-side inlined env vars are absent.
+ * Fetches all courses with status metadata (whether loaded from Supabase DB or fallback).
  */
-export async function fetchAllCourses(): Promise<Course[]> {
+export async function fetchCoursesWithStatus(): Promise<FetchCoursesResult> {
+  let isPermissionDenied = false;
+  let lastError = '';
+
   // 1. Direct Supabase Query (when configured)
   if (isSupabaseConfigured) {
     try {
@@ -90,7 +99,11 @@ export async function fetchAllCourses(): Promise<Course[]> {
         .select('*');
 
       if (error) {
-        console.error('❌ Supabase "courses" query returned an error:', error.message, error.details, error.hint);
+        console.warn('Supabase "courses" direct query notice:', error.message);
+        if (error.code === '42501' || (error.message || '').toLowerCase().includes('permission denied')) {
+          isPermissionDenied = true;
+          lastError = error.message;
+        }
       } else if (dbCourses && dbCourses.length > 0) {
         console.log(`✅ Loaded ${dbCourses.length} courses directly from Supabase`);
 
@@ -144,17 +157,18 @@ export async function fetchAllCourses(): Promise<Course[]> {
           courseMap.set(key, merged);
         }
 
-        return Array.from(courseMap.values());
-      } else {
-        console.warn('⚠️ Supabase "courses" table query returned 0 rows. Check RLS SELECT policy in Supabase SQL editor.');
+        return {
+          courses: Array.from(courseMap.values()),
+          fromDatabase: true,
+          count: dbCourses.length,
+        };
       }
-    } catch (err) {
-      console.error('❌ Supabase direct fetchAllCourses exception:', err);
+    } catch (err: any) {
+      console.warn('Supabase direct fetch exception:', err);
     }
   }
 
   // 2. Client-side fetch to server route /api/courses if running in the browser
-  // This allows the server to query Supabase (bypassing missing browser inlined env vars or CORS)
   if (typeof window !== 'undefined') {
     try {
       const res = await fetch('/api/courses');
@@ -162,7 +176,15 @@ export async function fetchAllCourses(): Promise<Course[]> {
         const json = await res.json();
         if (json.courses && json.courses.length > 0 && json.fromDatabase) {
           console.log(`✅ Loaded ${json.courses.length} courses from /api/courses server endpoint`);
-          return json.courses;
+          return {
+            courses: json.courses,
+            fromDatabase: true,
+            count: json.count || json.courses.length,
+          };
+        }
+        if (json.permissionDenied) {
+          isPermissionDenied = true;
+          lastError = json.error || 'Permission denied for table courses';
         }
       }
     } catch (apiErr) {
@@ -170,7 +192,21 @@ export async function fetchAllCourses(): Promise<Course[]> {
     }
   }
 
-  return coursesData;
+  return {
+    courses: coursesData,
+    fromDatabase: false,
+    permissionDenied: isPermissionDenied,
+    error: lastError,
+  };
+}
+
+/**
+ * Fetches all courses from Supabase 'courses' table, merging with slide decks
+ * and graceful fallback to local data.
+ */
+export async function fetchAllCourses(): Promise<Course[]> {
+  const result = await fetchCoursesWithStatus();
+  return result.courses;
 }
 
 /**
