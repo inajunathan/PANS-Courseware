@@ -156,15 +156,15 @@ export default function CourseDetailsClient({
                 {currentCourse.description}
               </p>
 
-              {/* Faculty Credentials Bar */}
+              {/* Course Meta Info Bar */}
               <div className="flex flex-wrap items-center gap-6 text-xs sm:text-sm text-slate-600 pt-4 border-t border-slate-100">
                 <div className="flex items-center gap-2">
                   <GraduationCap className="w-4 h-4 text-[#7C3AED]" />
-                  <span><strong className="text-slate-800">Lead Faculty:</strong> {currentCourse.leadLecturer}</span>
+                  <span><strong className="text-slate-800">Department:</strong> {currentCourse.department}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <BookOpen className="w-4 h-4 text-[#7C3AED]" />
-                  <span><strong className="text-slate-800">Academic Units:</strong> {currentCourse.units} Credit Units</span>
+                  <span><strong className="text-slate-800">Level:</strong> {currentCourse.level} Level</span>
                 </div>
               </div>
             </div>
@@ -249,20 +249,18 @@ export default function CourseDetailsClient({
                           ? 'bg-white text-[#4c1d95]'
                           : 'bg-[#FAF5FF] text-[#6B21A8] border border-[#E9D5FF]'
                       }`}>
-                        {unit.unitNumber}
+                        <FileText className="w-5 h-5" />
                       </div>
 
                       <div>
                         <h3 className={`font-['Montserrat',sans-serif] text-base sm:text-lg font-bold mb-1 transition-colors ${
                           isActive ? 'text-white' : 'text-[#0F172A]'
                         }`}>
-                          {unit.title}
+                          {unit.title.replace(/^Unit\s+\d+[:\s-]*/i, '')}
                         </h3>
                         <div className={`flex flex-wrap items-center gap-3 text-xs transition-colors ${
                           isActive ? 'text-purple-200' : 'text-slate-500'
                         }`}>
-                          <span>By {unit.lecturer}</span>
-                          <span>•</span>
                           <span>{unit.totalPages || 20} Pages</span>
                           <span>•</span>
                           <span>{unit.fileSize || '8.0 MB'}</span>
@@ -295,7 +293,7 @@ export default function CourseDetailsClient({
                       </Link>
                       <a
                         href={downloadUrl}
-                        download={`${currentCourse.code}_Unit_${unit.unitNumber}_Slides.pdf`}
+                        download={`${currentCourse.code}_Material_${index + 1}.pdf`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className={`p-2 rounded-lg transition-colors flex items-center justify-center ${
@@ -313,7 +311,7 @@ export default function CourseDetailsClient({
               })
             ) : (
               <div className="bg-white p-8 rounded-2xl text-center text-slate-500 border border-slate-200">
-                No lecture slide units uploaded for this course yet.
+                No lecture notes or slides uploaded for this course yet.
               </div>
             )}
           </div>

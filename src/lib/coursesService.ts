@@ -5,9 +5,9 @@ import { Course, LectureUnit, AcademicLevel, Semester, Specialization } from '@/
 export interface DbCourseSlide {
   id: string;
   course_id: string;
-  unit_number: number;
+  unit_number?: number;
   title: string;
-  lecturer: string;
+  lecturer?: string;
   pdf_url: string;
   total_pages?: number;
   file_size?: string;
@@ -51,19 +51,19 @@ export function normalizeDbCourse(
   const units = Number(row.units || row.credit_units || row.creditUnits || localFallback?.units || 3);
   const specialization = (row.specialization || department || localFallback?.specialization || 'Core Professional') as Specialization;
   const description = row.description || localFallback?.description || `Curriculum materials, official lecture slides, and examination archive for ${code} - ${title}.`;
-  const leadLecturer = row.lead_lecturer || row.lecturer || slides[0]?.lecturer || localFallback?.leadLecturer || 'Faculty Lecturers';
+  const leadLecturer = row.lead_lecturer || row.lecturer || localFallback?.leadLecturer || '';
   const pdfStorageUrl = row.pdf_storage_url || row.pdf_url || row.pdfUrl || localFallback?.pdf_storage_url;
 
   let combinedUnits = slides.length > 0 ? [...slides] : (localFallback?.lectureUnits ? [...localFallback.lectureUnits] : []);
 
-  // If a pdfStorageUrl exists on the course row, ensure it is represented as a unit
-  // so students and lecturers can see, read, and download it!
+  // If a pdfStorageUrl exists on the course row, ensure it is represented as a study material
+  // so students can see, read, and download it!
   if (pdfStorageUrl && !combinedUnits.some((u) => u.pdfUrl === pdfStorageUrl)) {
     combinedUnits.unshift({
       id: `${code.toLowerCase().replace(/[^a-z0-9]/g, '-')}-syllabus-pdf`,
       unitNumber: 1,
       title: `${code}: Official Course Material & Lecture Slides`,
-      lecturer: leadLecturer,
+      lecturer: '',
       totalPages: 24,
       fileSize: '9.5 MB',
       pdfUrl: pdfStorageUrl,
@@ -137,9 +137,9 @@ export async function fetchCoursesWithStatus(): Promise<FetchCoursesResult> {
               if (!slidesByCourse.has(cid)) slidesByCourse.set(cid, []);
               slidesByCourse.get(cid)!.push({
                 id: s.id,
-                unitNumber: s.unit_number || s.unitNumber || 1,
-                title: s.title || `Unit ${s.unit_number || 1}`,
-                lecturer: s.lecturer || 'Faculty Lecturer',
+                unitNumber: s.unit_number || s.unitNumber || 0,
+                title: s.title || 'Course Lecture Material',
+                lecturer: s.lecturer || '',
                 totalPages: s.total_pages || s.totalPages || 20,
                 fileSize: s.file_size || s.fileSize || '8.0 MB',
                 pdfUrl: s.pdf_url || s.pdfUrl,
@@ -168,7 +168,7 @@ export async function fetchCoursesWithStatus(): Promise<FetchCoursesResult> {
           const courseSlides = slidesByCourse.get(String(dbCourse.id).toLowerCase()) ||
             slidesByCourse.get(key) ||
             [];
-          courseSlides.sort((a, b) => a.unitNumber - b.unitNumber);
+          courseSlides.sort((a, b) => (a.unitNumber || 0) - (b.unitNumber || 0));
 
           const merged = normalizeDbCourse(dbCourse, courseSlides, existing);
           courseMap.set(key, merged);
@@ -264,14 +264,14 @@ export async function fetchCourseByCode(courseCode: string): Promise<Course | nu
           .from('course_slides')
           .select('*')
           .eq('course_id', dbCourse.id)
-          .order('unit_number', { ascending: true });
+          .order('created_at', { ascending: true });
 
         if (!sErr && slidesData) {
           slides = slidesData.map((s: any) => ({
             id: s.id,
-            unitNumber: s.unit_number || 1,
-            title: s.title || `Unit ${s.unit_number || 1}`,
-            lecturer: s.lecturer || 'Faculty Lecturer',
+            unitNumber: s.unit_number || 0,
+            title: s.title || 'Course Lecture Material',
+            lecturer: s.lecturer || '',
             totalPages: s.total_pages || 20,
             fileSize: s.file_size || '8.0 MB',
             pdfUrl: s.pdf_url || dbCourse.pdf_storage_url,
@@ -337,7 +337,7 @@ export async function fetchLectureUnitById(unitId: string): Promise<UnitWithCour
           units: 3,
           specialization: 'Core Professional',
           description: `Verified course syllabus for ${courseCode}.`,
-          leadLecturer: slideRow.lecturer || 'Faculty Lecturer',
+          leadLecturer: '',
           department: 'Faculty of Pharmacy',
           pdfCount: 1,
           pqCount: 0,
@@ -348,9 +348,9 @@ export async function fetchLectureUnitById(unitId: string): Promise<UnitWithCour
 
         const unit: LectureUnit = {
           id: slideRow.id,
-          unitNumber: slideRow.unit_number || 1,
+          unitNumber: slideRow.unit_number || 0,
           title: slideRow.title || 'Lecture Slides',
-          lecturer: slideRow.lecturer || 'Faculty Lecturer',
+          lecturer: '',
           totalPages: slideRow.total_pages || 28,
           fileSize: slideRow.file_size || '8.4 MB',
           pdfUrl: slideRow.pdf_url || fallbackCourse.pdf_storage_url,
@@ -372,9 +372,9 @@ export async function fetchLectureUnitById(unitId: string): Promise<UnitWithCour
         const parentCourse = normalizeDbCourse(courseById, []);
         const unit: LectureUnit = {
           id: unitId,
-          unitNumber: 1,
+          unitNumber: 0,
           title: `${parentCourse.code}: Official Course Material & Lecture Slides`,
-          lecturer: parentCourse.leadLecturer,
+          lecturer: '',
           totalPages: 24,
           fileSize: '9.5 MB',
           pdfUrl: courseById.pdf_storage_url,
@@ -397,9 +397,9 @@ export async function fetchLectureUnitById(unitId: string): Promise<UnitWithCour
         const parentCourse = normalizeDbCourse(courseRow, []);
         const unit: LectureUnit = {
           id: cleanId,
-          unitNumber: 1,
+          unitNumber: 0,
           title: `${parentCourse.code}: Official Course Material & Lecture Slides`,
-          lecturer: parentCourse.leadLecturer,
+          lecturer: '',
           totalPages: 24,
           fileSize: '9.5 MB',
           pdfUrl: courseRow.pdf_storage_url,

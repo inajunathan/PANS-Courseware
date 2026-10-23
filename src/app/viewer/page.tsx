@@ -12,7 +12,7 @@ export const revalidate = 86400;
 
 export const metadata: Metadata = {
   title: 'Interactive PDF Reader & Document Viewer | PANS Courseware',
-  description: 'Study verified academic lecture notes, curriculum unit guides, and chemical SAR schemas in an interactive split-view reader with page bookmarks.',
+  description: 'Study verified academic lecture notes, curriculum guides, and chemical SAR schemas in an interactive split-view reader with page bookmarks.',
 };
 
 const defaultDocument: ViewerDocumentData = {
@@ -22,7 +22,7 @@ const defaultDocument: ViewerDocumentData = {
   courseTitle: 'Pharmaceutical Chemistry: SAR & Drug Design',
   academicYear: '2025/2026',
   department: 'Dept. of Pharmaceutical Chemistry',
-  lecturer: 'Prof. A. Adebayo, PhD, FPSN',
+  lecturer: '',
   module: 'Antimicrobial Drug Design',
   totalPages: 28,
   fileSize: '8.4 MB',

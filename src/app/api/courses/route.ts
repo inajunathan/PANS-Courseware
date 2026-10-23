@@ -53,9 +53,9 @@ export async function GET() {
             if (!slidesByCourse.has(cid)) slidesByCourse.set(cid, []);
             slidesByCourse.get(cid)!.push({
               id: s.id,
-              unitNumber: s.unit_number || 1,
-              title: s.title || `Unit ${s.unit_number || 1}`,
-              lecturer: s.lecturer || 'Faculty Lecturer',
+              unitNumber: s.unit_number || 0,
+              title: s.title || 'Course Lecture Material',
+              lecturer: s.lecturer || '',
               totalPages: s.total_pages || 20,
               fileSize: s.file_size || '8.0 MB',
               pdfUrl: s.pdf_url,
@@ -80,7 +80,7 @@ export async function GET() {
         const courseSlides = slidesByCourse.get(String(row.id).toLowerCase()) ||
           slidesByCourse.get(key) ||
           [];
-        courseSlides.sort((a, b) => a.unitNumber - b.unitNumber);
+        courseSlides.sort((a, b) => (a.unitNumber || 0) - (b.unitNumber || 0));
 
         courseMap.set(key, normalizeDbCourse(row, courseSlides, existing));
       }

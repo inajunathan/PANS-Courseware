@@ -75,9 +75,7 @@ Usage:
 Options:
   --file="path/to/file.pdf"       Path to local PDF, PPTX, DOCX, or image
   --code="PCH 401"                Course code (e.g. PCG 501, PCH 401)
-  --unit=1                        Unit number (1, 2, 3...)
-  --title="Lecture Title"         Title of lecture/unit
-  --lecturer="Prof. Name"         Name of the lecturer
+  --title="Lecture Title"         Title of lecture notes / slides
   --pages=28                      Number of pages / slides (optional)
   --level="400"                   Class level (100, 200, 300, 400, 500)
 `);
@@ -102,10 +100,7 @@ Options:
 
   const filePath = args.file || path.resolve(__dirname, '../public/sample-past-question.pdf');
   const courseCode = (args.code || 'PCH 401').trim();
-  const unitNumber = parseInt(args.unit || '1', 10);
-  const paddedUnit = String(unitNumber).padStart(2, '0');
-  const title = (args.title || `Unit ${unitNumber} Lecture Slides`).trim();
-  const lecturer = (args.lecturer || 'Faculty Lecturer').trim();
+  const title = (args.title || 'Course Lecture Slides').trim();
   const totalPages = parseInt(args.pages || '28', 10);
   const level = (args.level || '400').trim();
 
@@ -136,12 +131,12 @@ Options:
   };
   const mimeType = mimeMap[ext] || 'application/octet-stream';
 
-  const fileName = `Unit_${paddedUnit}_${cleanTitleSlug}_${Date.now()}${ext}`;
-  const storagePath = `${level}L/${cleanCourseCode}/units/${fileName}`;
+  const fileName = `${cleanTitleSlug}_${Date.now()}${ext}`;
+  const storagePath = `${level}L/${cleanCourseCode}/slides/${fileName}`;
 
   console.log(`\n📄 Local File: ${filePath} (${fileSizeStr}) [Format: ${ext.toUpperCase()}]`);
   console.log(`📚 Course: [${courseCode}]`);
-  console.log(`📑 Unit: ${unitNumber} - ${title} (by ${lecturer})`);
+  console.log(`📑 Title: ${title}`);
   console.log(`☁️ Storage Bucket: 'courses' -> Path: '${storagePath}'`);
 
   try {
@@ -200,9 +195,7 @@ Options:
       .from('course_slides')
       .insert({
         course_id: courseId,
-        unit_number: unitNumber,
         title: title,
-        lecturer: lecturer,
         pdf_url: publicPdfUrl,
         total_pages: totalPages,
         file_size: fileSizeStr,
@@ -217,7 +210,7 @@ Options:
 
     console.log('\n🎉 SUCCESS! Slide deck uploaded and recorded.');
     console.log(`Slide ID: ${slideData.id}`);
-    console.log(`Course: ${courseCode} (Unit ${unitNumber})`);
+    console.log(`Course: ${courseCode}`);
     console.log(`View live at: http://localhost:3000/courses/${courseCode.toLowerCase().replace(/\s+/g, '-')}`);
     console.log('============================================================\n');
   } catch (err) {

@@ -157,12 +157,8 @@ export default function FeaturedCoursesSection() {
 
                   <div className="space-y-1.5 mb-6 text-xs text-slate-500">
                     <div className="flex items-center gap-1.5">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                      <span className="truncate">{course.leadLecturer}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
                       <BookOpen className="w-3.5 h-3.5 text-[#7C3AED]" />
-                      <span>{course.units} Credit Units • {course.department}</span>
+                      <span className="truncate font-medium text-slate-700">{course.department}</span>
                     </div>
                   </div>
                 </div>

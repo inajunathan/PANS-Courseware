@@ -13,9 +13,9 @@ export type Specialization =
 
 export interface LectureUnit {
   id: string;
-  unitNumber: number;
+  unitNumber?: number;
   title: string;
-  lecturer: string;
+  lecturer?: string;
   totalPages: number;
   fileSize: string;
   pdfUrl?: string;
@@ -29,10 +29,10 @@ export interface Course {
   title: string;
   level: AcademicLevel;
   semester: Semester;
-  units: number;
+  units?: number;
   specialization: Specialization;
   description: string;
-  leadLecturer: string;
+  leadLecturer?: string;
   department: string;
   pdfCount: number;
   pqCount: number;

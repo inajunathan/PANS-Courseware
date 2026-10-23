@@ -50,8 +50,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
 
   const { unit, course } = match;
-  const title = `${unit.title} (${course.code} Unit ${unit.unitNumber}) | PANS Courseware`;
-  const description = `Interactive PDF lecture notes and study breakdown for ${unit.title} by ${unit.lecturer} (${course.code}).`;
+  const cleanTitle = unit.title.replace(/^Unit\s+\d+[:\s-]*/i, '');
+  const title = `${cleanTitle} (${course.code}) | PANS Courseware`;
+  const description = `Interactive PDF lecture notes and study breakdown for ${cleanTitle} (${course.code}).`;
 
   return {
     title,
@@ -93,23 +94,24 @@ export default async function IndividualPdfViewerPage({ params }: PageProps) {
   }
 
   const { unit, course } = match;
+  const cleanTitle = unit.title.replace(/^Unit\s+\d+[:\s-]*/i, '');
   const publicPdfUrl = unit.pdfUrl || course.pdf_storage_url || '/sample-past-question.pdf';
 
   const doc: ViewerDocumentData = {
     id: unit.id,
-    title: unit.title,
+    title: cleanTitle,
     courseCode: course.code,
     courseTitle: course.title,
     academicYear: '2025/2026',
     department: course.department,
-    lecturer: unit.lecturer,
-    module: `Unit ${unit.unitNumber} PDF & Slides Module`,
+    lecturer: '',
+    module: `${course.code} Lecture Material`,
     totalPages: unit.totalPages || 28,
     fileSize: unit.fileSize || '8.4 MB',
     pdfUrl: publicPdfUrl,
     returnUrl: `/courses/${course.code.toLowerCase().replace(/\s+/g, '-')}`,
-    chapterTitle: `Unit ${unit.unitNumber}: ${unit.title}`,
-    leadParagraph: `This official course document covers the learning objectives and slides for ${course.code} Unit ${unit.unitNumber}, supervised by ${unit.lecturer}. It details core principles, mechanisms, pharmacophore mappings, and exam criteria.`,
+    chapterTitle: cleanTitle,
+    leadParagraph: `This official course document covers the learning objectives and slides for ${course.code}: ${cleanTitle}. It details core principles, mechanisms, pharmacophore mappings, and exam criteria.`,
   };
 
   return <DocumentViewerWorkspace document={doc} />;
