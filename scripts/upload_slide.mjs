@@ -66,6 +66,24 @@ function parseArgs() {
 }
 
 async function uploadSlide() {
+  if (process.argv.includes('--help') || process.argv.includes('-h')) {
+    console.log(`
+Usage:
+  node scripts/upload_slide.mjs [options]
+  npm run upload:slide -- [options]
+
+Options:
+  --file="path/to/file.pdf"       Path to local PDF, PPTX, DOCX, or image
+  --code="PCH 401"                Course code (e.g. PCG 501, PCH 401)
+  --unit=1                        Unit number (1, 2, 3...)
+  --title="Lecture Title"         Title of lecture/unit
+  --lecturer="Prof. Name"         Name of the lecturer
+  --pages=28                      Number of pages / slides (optional)
+  --level="400"                   Class level (100, 200, 300, 400, 500)
+`);
+    process.exit(0);
+  }
+
   console.log('\n============================================================');
   console.log('🚀 PANS Courseware: Supabase PDF & Slide Deck Uploader');
   console.log('============================================================');
@@ -85,6 +103,7 @@ async function uploadSlide() {
   const filePath = args.file || path.resolve(__dirname, '../public/sample-past-question.pdf');
   const courseCode = (args.code || 'PCH 401').trim();
   const unitNumber = parseInt(args.unit || '1', 10);
+  const paddedUnit = String(unitNumber).padStart(2, '0');
   const title = (args.title || `Unit ${unitNumber} Lecture Slides`).trim();
   const lecturer = (args.lecturer || 'Faculty Lecturer').trim();
   const totalPages = parseInt(args.pages || '28', 10);

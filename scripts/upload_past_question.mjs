@@ -71,6 +71,25 @@ function parseArgs() {
 }
 
 async function uploadPastQuestion() {
+  if (process.argv.includes('--help') || process.argv.includes('-h')) {
+    console.log(`
+Usage:
+  node scripts/upload_past_question.mjs [options]
+  npm run upload:pq -- [options]
+
+Options:
+  --file="path/to/exam.pdf"       Path to past question PDF (required)
+  --code="PCH 401"                Course code (e.g. PCG 501, PCH 401)
+  --title="Course Title"          Full course title
+  --dept="Department"             Department name
+  --year="2024/2025"              Academic session (e.g. 2023/2024)
+  --semester="First"              "First" or "Second"
+  --examType="Degree Exam"        Exam type (e.g. First Semester Examination)
+  --pages=8                       Total pages
+`);
+    process.exit(0);
+  }
+
   console.log('\n============================================================');
   console.log('🚀 PANS Courseware: Supabase PDF & Past Question Uploader');
   console.log('============================================================');

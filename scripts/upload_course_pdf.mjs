@@ -66,6 +66,21 @@ function parseArgs() {
 }
 
 async function uploadCoursePdf() {
+  if (process.argv.includes('--help') || process.argv.includes('-h')) {
+    console.log(`
+Usage:
+  node scripts/upload_course_pdf.mjs [options]
+  npm run upload:course -- [options]
+
+Options:
+  --file="path/to/syllabus.pdf"   Path to course syllabus or handout PDF
+  --code="PCH 401"                Course code (e.g. PCG 501, PCH 401)
+  --title="Course Title"          Full course title
+  --dept="Department"             Department name
+`);
+    process.exit(0);
+  }
+
   console.log('\n============================================================');
   console.log('🚀 PANS Courseware: Supabase Course PDF & Material Uploader');
   console.log('============================================================');
