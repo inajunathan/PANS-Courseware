@@ -7,16 +7,16 @@ import {
   ZoomIn, 
   ZoomOut, 
   Download, 
-  AlertCircle,
-  FileText,
-  Loader2,
-  Smartphone,
-  ExternalLink,
-  Layers,
-  Monitor,
-  Presentation,
-  Image as ImageIcon,
-  RotateCcw
+  AlertCircle, 
+  FileText, 
+  Loader2, 
+  Smartphone, 
+  ExternalLink, 
+  Layers, 
+  Monitor, 
+  Presentation, 
+  Image as ImageIcon, 
+  RotateCcw 
 } from 'lucide-react';
 
 export type SupportedFileType = 'pdf' | 'powerpoint' | 'word' | 'image' | 'generic';
@@ -64,6 +64,187 @@ export function getViewerPdfUrl(url: string): string {
   return url;
 }
 
+interface PdfPageItemProps {
+  pageNumber: number;
+  totalPages: number;
+  pdfDoc: any;
+  zoomMultiplier: number;
+  containerWidth: number;
+  onPageVisible: (pageNumber: number) => void;
+  onPageClick: (pageNumber: number) => void;
+}
+
+function PdfPageItem({
+  pageNumber,
+  totalPages,
+  pdfDoc,
+  zoomMultiplier,
+  containerWidth,
+  onPageVisible,
+  onPageClick,
+}: PdfPageItemProps) {
+  const pageRef = useRef<HTMLDivElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [isNearViewport, setIsNearViewport] = useState<boolean>(pageNumber <= 2);
+  const [rendering, setRendering] = useState<boolean>(false);
+  const [rendered, setRendered] = useState<boolean>(false);
+  const renderTaskRef = useRef<any>(null);
+
+  // IntersectionObserver: trigger render when near viewport and update active page
+  useEffect(() => {
+    const el = pageRef.current;
+    if (!el) return;
+
+    const renderObserver = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (entry?.isIntersecting) {
+          setIsNearViewport(true);
+        }
+      },
+      { rootMargin: '800px 0px 800px 0px' }
+    );
+
+    const visibilityObserver = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (entry?.isIntersecting) {
+          onPageVisible(pageNumber);
+        }
+      },
+      { threshold: 0.3 }
+    );
+
+    renderObserver.observe(el);
+    visibilityObserver.observe(el);
+
+    return () => {
+      renderObserver.disconnect();
+      visibilityObserver.disconnect();
+    };
+  }, [pageNumber, onPageVisible]);
+
+  // Render current PDF page onto HTML5 Canvas
+  useEffect(() => {
+    if (!isNearViewport || !pdfDoc || !canvasRef.current) return;
+
+    let isCancelled = false;
+
+    if (renderTaskRef.current) {
+      try {
+        renderTaskRef.current.cancel();
+      } catch {
+        // Ignore cancellation error
+      }
+    }
+
+    async function renderCanvas() {
+      setRendering(true);
+      try {
+        const page = await pdfDoc.getPage(pageNumber);
+        if (isCancelled || !canvasRef.current) return;
+
+        const canvas = canvasRef.current;
+        const context = canvas.getContext('2d');
+        if (!context) return;
+
+        const isMobile = typeof window !== 'undefined' ? window.innerWidth < 768 : false;
+        const padding = isMobile ? 16 : 48;
+        const availableWidth = Math.max(containerWidth - padding, 260);
+
+        const unscaledViewport = page.getViewport({ scale: 1.0 });
+        const fitScale = availableWidth / unscaledViewport.width;
+        const baseScale = isMobile ? fitScale : Math.min(fitScale, 1.25);
+        const effectiveScale = Math.max(baseScale * zoomMultiplier, 0.45);
+
+        const viewport = page.getViewport({ scale: effectiveScale });
+        const outputScale = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+
+        canvas.width = Math.floor(viewport.width * outputScale);
+        canvas.height = Math.floor(viewport.height * outputScale);
+        canvas.style.width = Math.floor(viewport.width) + 'px';
+        canvas.style.height = Math.floor(viewport.height) + 'px';
+
+        const transform = outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : undefined;
+
+        const renderTask = page.render({
+          canvasContext: context,
+          transform: transform,
+          viewport: viewport,
+        });
+        renderTaskRef.current = renderTask;
+
+        await renderTask.promise;
+        if (!isCancelled) {
+          setRendering(false);
+          setRendered(true);
+        }
+      } catch (err: any) {
+        if (err?.name !== 'RenderingCancelledException') {
+          console.error(`Page ${pageNumber} render error:`, err);
+        }
+        if (!isCancelled) {
+          setRendering(false);
+        }
+      }
+    }
+
+    renderCanvas();
+
+    return () => {
+      isCancelled = true;
+      if (renderTaskRef.current) {
+        try {
+          renderTaskRef.current.cancel();
+        } catch {}
+      }
+    };
+  }, [isNearViewport, pdfDoc, pageNumber, zoomMultiplier, containerWidth]);
+
+  return (
+    <div
+      id={`pdf-page-${pageNumber}`}
+      ref={pageRef}
+      className="scroll-mt-32 w-full flex flex-col items-center my-3 sm:my-4 transition-all"
+    >
+      <div
+        onClick={() => onPageClick(pageNumber)}
+        title={pageNumber < totalPages ? 'Click to advance to next page' : 'Last page'}
+        className="group relative bg-white rounded-xl sm:rounded-2xl shadow-md sm:shadow-lg hover:shadow-xl border border-slate-200/90 overflow-hidden cursor-pointer transition-all duration-200 max-w-full"
+        style={{ minHeight: rendered ? undefined : '500px' }}
+      >
+        {/* Page indicator badge */}
+        <div className="absolute top-3 right-3 z-20 bg-slate-900/75 hover:bg-slate-900 backdrop-blur-md text-white text-[11px] font-semibold px-2.5 py-1 rounded-full shadow-xs flex items-center gap-1 select-none pointer-events-none transition-opacity opacity-75 group-hover:opacity-100">
+          <span>{pageNumber}</span>
+          <span className="text-slate-400">/</span>
+          <span className="text-slate-300">{totalPages}</span>
+        </div>
+
+        {/* Next page hover hint */}
+        {pageNumber < totalPages && (
+          <div className="absolute bottom-3 right-3 z-20 bg-[#7C3AED]/90 text-white text-xs font-semibold px-3 py-1.5 rounded-xl shadow-md flex items-center gap-1 select-none opacity-0 group-hover:opacity-100 transition-opacity">
+            <span>Next page</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </div>
+        )}
+
+        {/* Loading state for unrendered / rendering page */}
+        {(!rendered || rendering) && (
+          <div className="absolute inset-0 bg-slate-50/70 backdrop-blur-2xs flex flex-col items-center justify-center gap-2 z-10 pointer-events-none">
+            <Loader2 className="w-6 h-6 animate-spin text-[#7C3AED]" />
+            <span className="text-xs text-slate-500 font-medium">Loading page {pageNumber}...</span>
+          </div>
+        )}
+
+        <canvas
+          ref={canvasRef}
+          className="block max-w-full mx-auto select-none"
+        />
+      </div>
+    </div>
+  );
+}
+
 export default function PdfCanvasViewer({
   pdfUrl,
   title = 'Academic Course Document',
@@ -74,8 +255,8 @@ export default function PdfCanvasViewer({
 }: PdfCanvasViewerProps) {
   const fileType = detectFileType(pdfUrl);
 
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const [containerWidth, setContainerWidth] = useState<number>(800);
 
   // PDF render mode: 'canvas' | 'embedded'
   const [renderMode, setRenderMode] = useState<'canvas' | 'embedded'>('canvas');
@@ -87,13 +268,11 @@ export default function PdfCanvasViewer({
   const [totalPages, setTotalPages] = useState<number>(totalPagesCount);
   const [zoomMultiplier, setZoomMultiplier] = useState<number>(1.0);
   const [loading, setLoading] = useState<boolean>(true);
-  const [rendering, setRendering] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const proxyUrl = getViewerPdfUrl(pdfUrl);
   const [activeUrl, setActiveUrl] = useState<string>(proxyUrl);
 
-  const renderTaskRef = useRef<any>(null);
   const touchStartDistRef = useRef<number | null>(null);
   const touchStartZoomRef = useRef<number>(1.0);
 
@@ -101,6 +280,24 @@ export default function PdfCanvasViewer({
   useEffect(() => {
     setActiveUrl(getViewerPdfUrl(pdfUrl));
   }, [pdfUrl]);
+
+  // Measure container width and keep updated on resize
+  useEffect(() => {
+    const updateWidth = () => {
+      if (containerRef.current) {
+        setContainerWidth(containerRef.current.clientWidth);
+      } else if (typeof window !== 'undefined') {
+        setContainerWidth(window.innerWidth);
+      }
+    };
+    updateWidth();
+    window.addEventListener('resize', updateWidth);
+    window.addEventListener('orientationchange', updateWidth);
+    return () => {
+      window.removeEventListener('resize', updateWidth);
+      window.removeEventListener('orientationchange', updateWidth);
+    };
+  }, []);
 
   // Initialize PDF.js only when dealing with PDF files in canvas mode
   useEffect(() => {
@@ -157,93 +354,6 @@ export default function PdfCanvasViewer({
     };
   }, [activeUrl, renderMode, fileType]);
 
-  // Render current PDF page onto HTML5 Canvas
-  const renderPage = useCallback(async () => {
-    if (fileType !== 'pdf' || renderMode !== 'canvas' || !pdfDoc || !canvasRef.current) return;
-
-    if (renderTaskRef.current) {
-      try {
-        renderTaskRef.current.cancel();
-      } catch {
-        // Ignore cancellation error
-      }
-    }
-
-    setRendering(true);
-
-    try {
-      const page = await pdfDoc.getPage(currentPage);
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-
-      const context = canvas.getContext('2d');
-      if (!context) return;
-
-      const containerWidth = containerRef.current
-        ? containerRef.current.clientWidth
-        : (typeof window !== 'undefined' ? window.innerWidth : 390);
-
-      const isMobile = typeof window !== 'undefined' ? window.innerWidth < 768 : false;
-      const padding = isMobile ? 16 : 48;
-      const availableWidth = Math.max(containerWidth - padding, 260);
-
-      const unscaledViewport = page.getViewport({ scale: 1.0 });
-      const fitScale = availableWidth / unscaledViewport.width;
-      const baseScale = isMobile ? fitScale : Math.min(fitScale, 1.25);
-      const effectiveScale = Math.max(baseScale * zoomMultiplier, 0.45);
-
-      const viewport = page.getViewport({ scale: effectiveScale });
-      const outputScale = window.devicePixelRatio || 1;
-
-      canvas.width = Math.floor(viewport.width * outputScale);
-      canvas.height = Math.floor(viewport.height * outputScale);
-      canvas.style.width = Math.floor(viewport.width) + 'px';
-      canvas.style.height = Math.floor(viewport.height) + 'px';
-
-      const transform = outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : undefined;
-
-      const renderContext = {
-        canvasContext: context,
-        transform: transform,
-        viewport: viewport
-      };
-
-      const renderTask = page.render(renderContext);
-      renderTaskRef.current = renderTask;
-
-      await renderTask.promise;
-      setRendering(false);
-    } catch (err: any) {
-      if (err?.name !== 'RenderingCancelledException') {
-        console.error('Canvas render error:', err);
-      }
-      setRendering(false);
-    }
-  }, [fileType, renderMode, pdfDoc, currentPage, zoomMultiplier]);
-
-  useEffect(() => {
-    renderPage();
-  }, [renderPage]);
-
-  // Handle window resizing
-  useEffect(() => {
-    let timeoutId: any;
-    const handleResize = () => {
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => {
-        renderPage();
-      }, 100);
-    };
-
-    window.addEventListener('resize', handleResize);
-    window.addEventListener('orientationchange', handleResize);
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      window.removeEventListener('orientationchange', handleResize);
-      clearTimeout(timeoutId);
-    };
-  }, [renderPage]);
-
   // Touch Pinch-to-Zoom handlers
   const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
     if (e.touches.length === 2) {
@@ -263,7 +373,7 @@ export default function PdfCanvasViewer({
         e.touches[0].clientY - e.touches[1].clientY
       );
       const ratio = dist / touchStartDistRef.current;
-      const newZoom = Math.min(Math.max(touchStartZoomRef.current * ratio, 0.6), 2.8);
+      const newZoom = Math.min(Math.max(touchStartZoomRef.current * ratio, 0.6), 2.5);
       setZoomMultiplier(Number(newZoom.toFixed(2)));
     }
   };
@@ -271,6 +381,28 @@ export default function PdfCanvasViewer({
   const handleTouchEnd = () => {
     touchStartDistRef.current = null;
   };
+
+  // Programmatic smooth scroll to a page (e.g. from arrow clicks or page click)
+  const scrollToPage = useCallback((targetPage: number) => {
+    const bounded = Math.max(1, Math.min(targetPage, totalPages));
+    setCurrentPage(bounded);
+    const element = document.getElementById(`pdf-page-${bounded}`);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [totalPages]);
+
+  // Click on page advances to next page
+  const handlePageClick = useCallback((clickedPage: number) => {
+    if (clickedPage < totalPages) {
+      scrollToPage(clickedPage + 1);
+    }
+  }, [totalPages, scrollToPage]);
+
+  // IntersectionObserver triggers active visible page
+  const handlePageVisible = useCallback((visiblePage: number) => {
+    setCurrentPage(visiblePage);
+  }, []);
 
   // Determine file extension for download naming
   const rawExt = pdfUrl.split('?')[0].split('#')[0].split('.').pop() || 'pdf';
@@ -280,240 +412,140 @@ export default function PdfCanvasViewer({
     : 'pdf';
   const downloadFileName = `${courseCode.replace(/[^a-zA-Z0-9]/g, '_')}_${title.replace(/[^a-zA-Z0-9]/g, '_')}.${safeExt}`;
 
-  // File type styling and text helpers
-  const fileTypeMeta = {
-    pdf: {
-      label: 'PDF Document',
-      badgeBg: 'bg-[#F3E8FF] text-[#6B21A8]',
-      icon: <FileText className="w-5 h-5 text-[#6B21A8]" />,
-      actionText: 'Download PDF',
-    },
-    powerpoint: {
-      label: 'PowerPoint Slide Deck (.pptx)',
-      badgeBg: 'bg-orange-100 text-orange-800',
-      icon: <Presentation className="w-5 h-5 text-orange-600" />,
-      actionText: 'Download Presentation',
-    },
-    word: {
-      label: 'Word Document (.docx)',
-      badgeBg: 'bg-blue-100 text-blue-800',
-      icon: <FileText className="w-5 h-5 text-blue-600" />,
-      actionText: 'Download Document',
-    },
-    image: {
-      label: 'Scientific Diagram / Image',
-      badgeBg: 'bg-emerald-100 text-emerald-800',
-      icon: <ImageIcon className="w-5 h-5 text-emerald-600" />,
-      actionText: 'Download Image',
-    },
-    generic: {
-      label: 'Academic File',
-      badgeBg: 'bg-slate-100 text-slate-800',
-      icon: <FileText className="w-5 h-5 text-slate-600" />,
-      actionText: 'Download File',
-    },
-  }[fileType];
-
   return (
     <div className="w-full flex flex-col items-center bg-[#FAF5FF] min-h-screen">
-      {/* 1. Universal Document Context Banner */}
-      <section className="w-full bg-white border-b border-slate-200 shadow-xs z-30">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl bg-[#F3E8FF] flex items-center justify-center shrink-0">
-              {fileTypeMeta.icon}
+      {/* 1. Reader Controls Toolbar (Sticky under top navbar) */}
+      {fileType === 'pdf' && renderMode === 'canvas' && (
+        <div className="sticky top-16 z-30 w-full bg-white/95 backdrop-blur-md px-3 sm:px-6 py-2.5 flex items-center justify-between border-b border-slate-200 text-xs sm:text-sm gap-2 shadow-2xs">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            <button
+              disabled={currentPage <= 1 || loading}
+              onClick={() => scrollToPage(currentPage - 1)}
+              className="w-10 h-10 min-w-[40px] rounded-xl bg-[#eff4ff] hover:bg-[#F3E8FF] text-slate-700 hover:text-[#6B21A8] disabled:opacity-30 disabled:pointer-events-none transition-all border border-slate-200 flex items-center justify-center active:scale-95"
+              aria-label="Previous Page"
+              title="Previous Page"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+
+            <div className="h-10 min-h-[40px] flex items-center bg-white rounded-xl px-3 sm:px-4 border border-slate-200 text-xs font-semibold select-none shadow-2xs">
+              <span className="text-[#6B21A8] font-bold text-sm sm:text-xs">{currentPage}</span>
+              <span className="mx-1.5 text-slate-400">/</span>
+              <span className="text-slate-600">{totalPages || 1}</span>
             </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="px-2.5 py-0.5 rounded-full bg-[#7C3AED] text-white text-xs font-bold font-['Montserrat',sans-serif]">
-                  {courseCode}
-                </span>
-                <span className="text-slate-300 text-xs">•</span>
-                <span className="text-xs font-semibold text-[#6B21A8] bg-[#F3E8FF] px-2 py-0.5 rounded">
-                  {academicYear}
-                </span>
-                <span className="text-slate-300 text-xs hidden sm:inline">•</span>
-                <span className={`text-xs font-medium px-2 py-0.5 rounded border border-slate-200 hidden sm:inline-flex items-center gap-1 ${fileTypeMeta.badgeBg}`}>
-                  <span>{fileTypeMeta.label}</span>
-                </span>
-              </div>
-              <h1 className="font-['Montserrat',sans-serif] text-sm sm:text-lg font-bold text-[#0F172A] mt-0.5 truncate">
-                {title}
-              </h1>
-              <p className="text-xs text-slate-500 truncate">{department}</p>
-            </div>
+
+            <button
+              disabled={currentPage >= totalPages || loading}
+              onClick={() => scrollToPage(currentPage + 1)}
+              className="w-10 h-10 min-w-[40px] rounded-xl bg-[#eff4ff] hover:bg-[#F3E8FF] text-slate-700 hover:text-[#6B21A8] disabled:opacity-30 disabled:pointer-events-none transition-all border border-slate-200 flex items-center justify-center active:scale-95"
+              aria-label="Next Page"
+              title="Next Page (or click on page)"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex items-center gap-2 self-stretch sm:self-auto justify-end flex-wrap sm:flex-nowrap">
-            {/* If PowerPoint or Word, allow switching between Microsoft and Google engines */}
-            {(fileType === 'powerpoint' || fileType === 'word') && (
+          <div className="hidden md:flex items-center gap-1.5 text-xs text-slate-500">
+            <Smartphone className="w-3.5 h-3.5 text-[#7C3AED]" />
+            <span>Scroll vertically • Click page or arrows to advance</span>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
               <button
-                onClick={() => setOfficeEngine(officeEngine === 'microsoft' ? 'google' : 'microsoft')}
-                className="min-h-[44px] inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-[#eff4ff] hover:bg-[#F3E8FF] text-slate-700 hover:text-[#6B21A8] text-xs font-semibold border border-slate-200 transition-all active:scale-95"
-                title="Switch Viewer Engine"
+                disabled={zoomMultiplier <= 0.6}
+                onClick={() => setZoomMultiplier((s) => Number(Math.max(s - 0.2, 0.6).toFixed(2)))}
+                className="w-10 h-10 min-w-[40px] flex items-center justify-center hover:bg-[#F3E8FF] text-slate-600 hover:text-[#6B21A8] disabled:opacity-30 transition-colors active:scale-95"
+                aria-label="Zoom Out"
+                title="Zoom Out"
               >
-                <span>{officeEngine === 'microsoft' ? 'Office Online' : 'Google Docs Engine'}</span>
+                <ZoomOut className="w-4 h-4" />
               </button>
-            )}
-
-            {/* If PDF, toggle Native vs Canvas reader */}
-            {fileType === 'pdf' && (
+              <span className="px-2 font-mono font-bold text-xs text-slate-800 min-w-[48px] text-center select-none">
+                {Math.round(zoomMultiplier * 100)}%
+              </span>
               <button
-                onClick={() => setRenderMode(renderMode === 'canvas' ? 'embedded' : 'canvas')}
-                className="min-h-[44px] inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-[#eff4ff] hover:bg-[#F3E8FF] text-slate-700 hover:text-[#6B21A8] text-xs font-semibold border border-slate-200 transition-all active:scale-95"
-                title="Toggle Reader Mode"
+                disabled={zoomMultiplier >= 2.5}
+                onClick={() => setZoomMultiplier((s) => Number(Math.min(s + 0.2, 2.5).toFixed(2)))}
+                className="w-10 h-10 min-w-[40px] flex items-center justify-center hover:bg-[#F3E8FF] text-slate-600 hover:text-[#6B21A8] disabled:opacity-30 transition-colors active:scale-95"
+                aria-label="Zoom In"
+                title="Zoom In"
               >
-                {renderMode === 'canvas' ? (
-                  <>
-                    <Monitor className="w-4 h-4 text-[#7C3AED]" />
-                    <span>Native PDF Mode</span>
-                  </>
-                ) : (
-                  <>
-                    <Layers className="w-4 h-4 text-[#7C3AED]" />
-                    <span>Canvas Mode</span>
-                  </>
-                )}
+                <ZoomIn className="w-4 h-4" />
               </button>
-            )}
+            </div>
 
-            {/* Fullscreen View in Dedicated Tab */}
-            <a
-              href={fileType === 'pdf' ? proxyUrl : pdfUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="min-h-[44px] inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-[#eff4ff] hover:bg-[#F3E8FF] text-slate-700 hover:text-[#6B21A8] text-xs font-semibold border border-slate-200 transition-all active:scale-95"
-              title="Open File in Fullscreen Tab"
+            <button
+              onClick={() => setZoomMultiplier(1.0)}
+              className="h-10 px-3 rounded-xl bg-white hover:bg-[#F3E8FF] hover:text-[#6B21A8] text-xs font-semibold text-slate-700 border border-slate-200 shadow-2xs transition-colors hidden sm:flex items-center justify-center"
             >
-              <ExternalLink className="w-4 h-4 text-[#7C3AED]" />
-              <span className="hidden sm:inline">Fullscreen</span>
-            </a>
+              Fit Width
+            </button>
 
-            {/* Direct Download Button */}
-            <a
-              href={pdfUrl}
-              download={downloadFileName}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="min-h-[44px] inline-flex items-center justify-center gap-2 px-4 sm:px-5 py-2.5 rounded-xl bg-[#7C3AED] hover:bg-[#6B21A8] active:scale-[0.98] text-white text-xs sm:text-sm font-semibold shadow-xs transition-all whitespace-nowrap"
+            <button
+              onClick={() => setRenderMode('embedded')}
+              className="h-10 px-3 rounded-xl bg-white hover:bg-[#F3E8FF] text-slate-700 hover:text-[#6B21A8] text-xs font-semibold border border-slate-200 shadow-2xs transition-all active:scale-95 hidden sm:flex items-center gap-1.5"
+              title="Toggle Native Browser PDF Mode"
             >
-              <Download className="w-4 h-4" />
-              <span>{fileTypeMeta.actionText}</span>
-            </a>
+              <Monitor className="w-4 h-4 text-[#7C3AED]" />
+              <span>Native Mode</span>
+            </button>
           </div>
         </div>
+      )}
 
-        {/* 2. Reader Controls Toolbar */}
-        {fileType === 'pdf' && renderMode === 'canvas' && (
-          <div className="w-full bg-[#eff4ff]/90 backdrop-blur-md px-3 sm:px-6 py-2 flex items-center justify-between border-t border-slate-200 text-xs sm:text-sm gap-2 overflow-x-auto">
-            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+      {/* Embedded Mode Toolbar */}
+      {fileType === 'pdf' && renderMode === 'embedded' && (
+        <div className="sticky top-16 z-30 w-full bg-white/95 backdrop-blur-md px-3 sm:px-6 py-2.5 flex items-center justify-between border-b border-slate-200 text-xs sm:text-sm shadow-2xs">
+          <span className="text-xs text-slate-600 font-medium">Native Browser PDF Engine Active</span>
+          <button
+            onClick={() => setRenderMode('canvas')}
+            className="h-10 px-3.5 rounded-xl bg-white hover:bg-[#F3E8FF] text-slate-700 hover:text-[#6B21A8] text-xs font-semibold border border-slate-200 transition-all active:scale-95 flex items-center gap-1.5 shadow-2xs"
+          >
+            <Layers className="w-4 h-4 text-[#7C3AED]" />
+            <span>Switch to Canvas Mode</span>
+          </button>
+        </div>
+      )}
+
+      {/* Image Viewer Toolbar */}
+      {fileType === 'image' && (
+        <div className="sticky top-16 z-30 w-full bg-white/95 backdrop-blur-md px-3 sm:px-6 py-2.5 flex items-center justify-between border-b border-slate-200 text-xs sm:text-sm gap-2 shadow-2xs">
+          <span className="text-xs text-slate-500 font-medium">High-Resolution Image Preview</span>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center bg-white rounded-xl shadow-2xs border border-slate-200 overflow-hidden">
               <button
-                disabled={currentPage <= 1 || loading}
-                onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
-                className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl bg-white hover:bg-[#F3E8FF] text-slate-700 hover:text-[#6B21A8] disabled:opacity-30 disabled:pointer-events-none transition-all shadow-2xs border border-slate-200 flex items-center justify-center active:scale-95"
-                aria-label="Previous Page"
-                title="Previous Page"
+                disabled={zoomMultiplier <= 0.4}
+                onClick={() => setZoomMultiplier((s) => Math.max(s - 0.2, 0.4))}
+                className="w-10 h-10 flex items-center justify-center hover:bg-[#F3E8FF] text-slate-600"
+                title="Zoom Out"
               >
-                <ChevronLeft className="w-5 h-5" />
+                <ZoomOut className="w-4 h-4" />
               </button>
-
-              <div className="h-11 min-h-[44px] flex items-center bg-white rounded-xl px-3 sm:px-4 shadow-2xs border border-slate-200 text-xs font-semibold select-none">
-                <span className="text-[#6B21A8] font-bold text-sm sm:text-xs">{currentPage}</span>
-                <span className="mx-1.5 text-slate-400">/</span>
-                <span className="text-slate-600">{totalPages || 1}</span>
-              </div>
-
+              <span className="px-2 font-mono font-bold text-xs text-slate-800 min-w-[50px] text-center select-none">
+                {Math.round(zoomMultiplier * 100)}%
+              </span>
               <button
-                disabled={currentPage >= totalPages || loading}
-                onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
-                className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl bg-white hover:bg-[#F3E8FF] text-slate-700 hover:text-[#6B21A8] disabled:opacity-30 disabled:pointer-events-none transition-all shadow-2xs border border-slate-200 flex items-center justify-center active:scale-95"
-                aria-label="Next Page"
-                title="Next Page"
+                disabled={zoomMultiplier >= 3.0}
+                onClick={() => setZoomMultiplier((s) => Math.min(s + 0.2, 3.0))}
+                className="w-10 h-10 flex items-center justify-center hover:bg-[#F3E8FF] text-slate-600"
+                title="Zoom In"
               >
-                <ChevronRight className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="hidden lg:flex items-center gap-1.5 text-xs text-slate-500">
-              <Smartphone className="w-3.5 h-3.5 text-[#7C3AED]" />
-              <span>Canvas Auto-Scaled • Pinch to Zoom Enabled</span>
-            </div>
-
-            <div className="flex items-center gap-2 shrink-0">
-              <div className="flex items-center bg-white rounded-xl shadow-2xs border border-slate-200 overflow-hidden">
-                <button
-                  disabled={zoomMultiplier <= 0.6}
-                  onClick={() => setZoomMultiplier((s) => Number(Math.max(s - 0.2, 0.6).toFixed(2)))}
-                  className="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-[#F3E8FF] text-slate-600 hover:text-[#6B21A8] disabled:opacity-30 transition-colors active:scale-95"
-                  aria-label="Zoom Out"
-                  title="Zoom Out"
-                >
-                  <ZoomOut className="w-4 h-4" />
-                </button>
-                <span className="px-2 font-mono font-bold text-xs text-slate-800 min-w-[50px] text-center select-none">
-                  {Math.round(zoomMultiplier * 100)}%
-                </span>
-                <button
-                  disabled={zoomMultiplier >= 2.5}
-                  onClick={() => setZoomMultiplier((s) => Number(Math.min(s + 0.2, 2.5).toFixed(2)))}
-                  className="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-[#F3E8FF] text-slate-600 hover:text-[#6B21A8] disabled:opacity-30 transition-colors active:scale-95"
-                  aria-label="Zoom In"
-                  title="Zoom In"
-                >
-                  <ZoomIn className="w-4 h-4" />
-                </button>
-              </div>
-
-              <button
-                onClick={() => setZoomMultiplier(1.0)}
-                className="min-h-[44px] px-3.5 rounded-xl bg-white hover:bg-[#F3E8FF] hover:text-[#6B21A8] text-xs font-semibold text-slate-700 border border-slate-200 transition-colors hidden sm:flex items-center justify-center shadow-2xs"
-              >
-                Fit Width
+                <ZoomIn className="w-4 h-4" />
               </button>
             </div>
+            <button
+              onClick={() => setZoomMultiplier(1.0)}
+              className="h-10 px-3 rounded-xl bg-white hover:bg-[#F3E8FF] text-xs font-semibold text-slate-700 border border-slate-200 flex items-center gap-1 shadow-2xs"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Reset</span>
+            </button>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Zoom Bar for Image Viewer */}
-        {fileType === 'image' && (
-          <div className="w-full bg-[#eff4ff]/90 backdrop-blur-md px-3 sm:px-6 py-2 flex items-center justify-between border-t border-slate-200 text-xs sm:text-sm gap-2">
-            <span className="text-xs text-slate-500 font-medium">Interactive High-Resolution Image Preview</span>
-            <div className="flex items-center gap-2">
-              <div className="flex items-center bg-white rounded-xl shadow-2xs border border-slate-200 overflow-hidden">
-                <button
-                  disabled={zoomMultiplier <= 0.4}
-                  onClick={() => setZoomMultiplier((s) => Math.max(s - 0.2, 0.4))}
-                  className="w-10 h-10 flex items-center justify-center hover:bg-[#F3E8FF] text-slate-600"
-                  title="Zoom Out"
-                >
-                  <ZoomOut className="w-4 h-4" />
-                </button>
-                <span className="px-2 font-mono font-bold text-xs text-slate-800 min-w-[50px] text-center">
-                  {Math.round(zoomMultiplier * 100)}%
-                </span>
-                <button
-                  disabled={zoomMultiplier >= 3.0}
-                  onClick={() => setZoomMultiplier((s) => Math.min(s + 0.2, 3.0))}
-                  className="w-10 h-10 flex items-center justify-center hover:bg-[#F3E8FF] text-slate-600"
-                  title="Zoom In"
-                >
-                  <ZoomIn className="w-4 h-4" />
-                </button>
-              </div>
-              <button
-                onClick={() => setZoomMultiplier(1.0)}
-                className="h-10 px-3 rounded-xl bg-white hover:bg-[#F3E8FF] text-xs font-semibold text-slate-700 border border-slate-200 flex items-center gap-1"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span>Reset</span>
-              </button>
-            </div>
-          </div>
-        )}
-      </section>
-
-      {/* 3. Main Document Viewport Area */}
+      {/* 2. Main Document Viewport Area */}
 
       {/* CASE A: PowerPoint or Word Document */}
       {(fileType === 'powerpoint' || fileType === 'word') ? (
@@ -538,10 +570,6 @@ export default function PdfCanvasViewer({
             >
               Switch to {officeEngine === 'microsoft' ? 'Google Docs Engine' : 'Microsoft Office Online'}
             </button>
-            <span>•</span>
-            <a href={pdfUrl} download={downloadFileName} className="text-[#7C3AED] hover:underline font-semibold">
-              Download File ({cleanExt.toUpperCase()})
-            </a>
           </div>
         </main>
       ) : fileType === 'image' ? (
@@ -566,23 +594,15 @@ export default function PdfCanvasViewer({
               title={`${title} - PDF Reader`}
             />
           </div>
-          <div className="mt-3 text-center text-xs text-slate-500 flex items-center gap-2">
-            <span>Powered by Native Browser PDF Engine</span>
-            <span>•</span>
-            <a href={proxyUrl} target="_blank" rel="noopener noreferrer" className="text-[#7C3AED] hover:underline font-semibold">
-              Open Fullscreen
-            </a>
-          </div>
         </main>
       ) : (
-        /* CASE C2: PDF in Mozilla PDF.js Canvas Mode */
+        /* CASE C2: PDF in Mozilla PDF.js Canvas Continuous Scroll Mode */
         <main
           ref={containerRef}
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
-          className="w-full flex-1 flex flex-col items-center justify-start p-2 sm:p-6 lg:p-8 overflow-y-auto overscroll-contain touch-pan-y"
-          style={{ WebkitOverflowScrolling: 'touch' }}
+          className="w-full max-w-5xl flex-1 flex flex-col items-center justify-start p-2 sm:p-6 lg:p-8 touch-pan-y"
         >
           {loading && (
             <div className="flex flex-col items-center gap-3 py-20 text-[#6B21A8]">
@@ -591,7 +611,7 @@ export default function PdfCanvasViewer({
                 Rendering PDF Document Preview...
               </p>
               <p className="text-xs text-slate-400">
-                Auto-scaled to 100% viewport width • Pinch to zoom enabled
+                Continuous page scroll & click-to-advance enabled
               </p>
             </div>
           )}
@@ -612,40 +632,32 @@ export default function PdfCanvasViewer({
                 >
                   Switch to Native Reader
                 </button>
-                <a
-                  href={pdfUrl}
-                  download={downloadFileName}
-                  className="w-full sm:w-auto min-h-[44px] px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-colors flex items-center justify-center"
-                >
-                  Download PDF
-                </a>
               </div>
             </div>
           )}
 
-          <div
-            className={`relative bg-white rounded-xl sm:rounded-2xl shadow-lg sm:shadow-xl border border-slate-200/90 overflow-hidden transition-shadow duration-200 max-w-full ${
-              loading ? 'hidden' : 'block'
-            }`}
-            style={{ touchAction: 'pan-y pinch-zoom' }}
-          >
-            {rendering && (
-              <div className="absolute inset-0 bg-white/60 backdrop-blur-xs flex items-center justify-center z-10">
-                <Loader2 className="w-6 h-6 animate-spin text-[#7C3AED]" />
-              </div>
-            )}
-            <canvas
-              ref={canvasRef}
-              className="block max-w-full mx-auto select-none"
-            />
-          </div>
+          {/* Continuous Multi-Page Scrollable View */}
+          {!loading && !errorMsg && pdfDoc && (
+            <div className="w-full flex flex-col items-center">
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
+                <PdfPageItem
+                  key={pageNum}
+                  pageNumber={pageNum}
+                  totalPages={totalPages}
+                  pdfDoc={pdfDoc}
+                  zoomMultiplier={zoomMultiplier}
+                  containerWidth={containerWidth}
+                  onPageVisible={handlePageVisible}
+                  onPageClick={handlePageClick}
+                />
+              ))}
 
-          {!loading && !errorMsg && (
-            <div className="mt-4 pb-6 text-center text-xs text-slate-400 space-y-1">
-              <p>Rendered with Mozilla PDF.js • Page {currentPage} of {totalPages}</p>
-              <p className="sm:hidden text-[11px] text-slate-400">
-                Pinch with two fingers to zoom in/out • Swipe vertically to scroll
-              </p>
+              <div className="mt-6 mb-12 text-center text-xs text-slate-400 space-y-1 select-none">
+                <p>End of document • {totalPages} pages rendered</p>
+                <p className="text-[11px] text-slate-400">
+                  Scroll up or click Previous Page in toolbar to navigate back
+                </p>
+              </div>
             </div>
           )}
         </main>

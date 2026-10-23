@@ -17,7 +17,8 @@ import {
   Sparkles,
   BookOpen,
   Presentation,
-  Image as ImageIcon
+  Image as ImageIcon,
+  ExternalLink
 } from 'lucide-react';
 import PdfCanvasViewer, { detectFileType } from '@/components/viewer/PdfCanvasViewer';
 
@@ -76,220 +77,58 @@ export default function DocumentViewerWorkspace({ document }: DocumentViewerWork
 
   return (
     <div className="min-h-screen flex flex-col bg-[#FAF5FF] text-[#0b1c30]">
-      {/* 1. Document Context Header */}
-      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-xs">
-        <div className="max-w-[1720px] mx-auto px-4 sm:px-6 py-3 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-          {/* Left: Breadcrumbs & Lecture Metadata */}
-          <div className="flex items-center gap-3 min-w-0">
+      {/* 1. Single Clean Document Context Header */}
+      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-xs h-16 flex items-center">
+        <div className="w-full max-w-[1720px] mx-auto px-3 sm:px-6 flex items-center justify-between gap-3">
+          {/* Left: Return Back & Core Info */}
+          <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0">
             <Link
               href={returnUrl}
-              className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl bg-[#eff4ff] text-slate-700 hover:bg-[#F3E8FF] hover:text-[#6B21A8] transition-colors shrink-0 flex items-center justify-center active:scale-95"
+              className="w-10 h-10 min-w-[40px] rounded-xl bg-[#eff4ff] text-slate-700 hover:bg-[#F3E8FF] hover:text-[#6B21A8] transition-colors shrink-0 flex items-center justify-center active:scale-95"
               title="Return to Course Hub"
               aria-label="Return to Course Hub"
             >
               <ArrowLeft className="w-5 h-5" />
             </Link>
 
-            <div className="flex flex-col min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="px-2.5 py-0.5 rounded-full bg-[#F3E8FF] text-[#6B21A8] text-xs font-bold tracking-wide font-['Montserrat',sans-serif]">
-                  {document.courseCode}
-                </span>
-                <span className="text-slate-300 text-xs">•</span>
-                <span className="text-xs font-semibold text-slate-600">{document.academicYear} Academic Session</span>
-                <span className="text-slate-300 text-xs hidden sm:inline">•</span>
-                <span className="text-xs text-slate-600 font-medium bg-slate-100 px-2 py-0.5 rounded border border-slate-200 hidden sm:inline-flex items-center gap-1">
-                  {fileType === 'powerpoint' ? (
-                    <>
-                      <Presentation className="w-3.5 h-3.5 text-orange-600" />
-                      <span>PowerPoint Slides</span>
-                    </>
-                  ) : fileType === 'word' ? (
-                    <>
-                      <FileText className="w-3.5 h-3.5 text-blue-600" />
-                      <span>Word Document</span>
-                    </>
-                  ) : fileType === 'image' ? (
-                    <>
-                      <ImageIcon className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>Diagram / Image</span>
-                    </>
-                  ) : (
-                    <>
-                      <FileText className="w-3.5 h-3.5 text-[#7C3AED]" />
-                      <span>Lecture PDF</span>
-                    </>
-                  )}
-                </span>
-              </div>
-
-              <h1 className="font-['Montserrat',sans-serif] text-sm sm:text-base font-bold text-[#0F172A] truncate mt-0.5">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="px-2.5 py-1 rounded-lg bg-[#7C3AED] text-white text-xs font-bold font-['Montserrat',sans-serif] shrink-0">
+                {document.courseCode}
+              </span>
+              <h1 className="font-['Montserrat',sans-serif] text-sm sm:text-base font-bold text-[#0F172A] truncate">
                 {document.title}
               </h1>
-              <p className="text-xs text-slate-500 truncate">
-                {document.department}
-              </p>
             </div>
           </div>
 
-          {/* Right: Actions */}
-          <div className="flex items-center gap-2 shrink-0 self-stretch sm:self-auto overflow-x-auto pb-1 sm:pb-0 justify-between sm:justify-end">
-            <button
-              onClick={() => setViewMode(viewMode === 'canvas' ? 'interactive' : 'canvas')}
-              className={`min-h-[44px] flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all shrink-0 active:scale-95 ${
-                viewMode === 'interactive'
-                  ? 'bg-[#7C3AED] text-white shadow-xs'
-                  : 'bg-[#eff4ff] text-slate-700 hover:bg-[#F3E8FF] hover:text-[#6B21A8]'
-              }`}
-            >
-              {viewMode === 'canvas' ? (
-                <>
-                  <BookOpen className="w-4 h-4 text-[#7C3AED]" />
-                  <span>Text Summary</span>
-                </>
-              ) : (
-                <>
-                  <FileText className="w-4 h-4" />
-                  <span>PDF Document</span>
-                </>
-              )}
-            </button>
-
-            <button
-              onClick={() => setNotesOpen(!notesOpen)}
-              className={`min-h-[44px] flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all shrink-0 active:scale-95 ${
-                notesOpen
-                  ? 'bg-[#6B21A8] text-white shadow-xs'
-                  : 'bg-[#eff4ff] text-slate-700 hover:bg-[#F3E8FF] hover:text-[#6B21A8]'
-              }`}
-            >
-              <Bookmark className="w-4 h-4" />
-              <span>Notes ({savedNotes.length})</span>
-            </button>
-
-            {viewMode === 'interactive' && (
-              <button
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                className={`w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl text-slate-700 hover:bg-[#F3E8FF] hover:text-[#6B21A8] transition-all flex items-center justify-center shrink-0 active:scale-95 ${
-                  sidebarOpen ? 'bg-[#eff4ff]' : 'bg-slate-100'
-                }`}
-                title="Toggle Page Thumbnails"
-                aria-label="Toggle Thumbnails"
-              >
-                <Layers className="w-4 h-4" />
-              </button>
-            )}
-
+          {/* Right: Important Actions Only */}
+          <div className="flex items-center gap-2 shrink-0">
             {document.pdfUrl && (
               <a
                 href={document.pdfUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="min-h-[44px] px-3 rounded-xl bg-[#eff4ff] text-slate-700 hover:bg-[#F3E8FF] hover:text-[#6B21A8] transition-all flex items-center justify-center shrink-0 active:scale-95 text-xs font-semibold gap-1.5"
-                title="Open PDF in Fullscreen Tab"
-                aria-label="Open PDF in Fullscreen Tab"
+                className="h-10 px-3.5 rounded-xl bg-[#eff4ff] text-slate-700 hover:bg-[#F3E8FF] hover:text-[#6B21A8] transition-all flex items-center justify-center shrink-0 active:scale-95 text-xs font-semibold gap-1.5"
+                title="Open in Fullscreen Tab"
+                aria-label="Open in Fullscreen Tab"
               >
-                <span>Fullscreen</span>
+                <ExternalLink className="w-4 h-4 text-[#7C3AED]" />
+                <span className="hidden sm:inline">Fullscreen</span>
               </a>
             )}
-
-            <button
-              onClick={() => alert('Printing academic document...')}
-              className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl bg-[#eff4ff] text-slate-700 hover:bg-[#F3E8FF] hover:text-[#6B21A8] transition-all flex items-center justify-center shrink-0 hidden md:flex active:scale-95"
-              title="Print Document"
-              aria-label="Print Document"
-            >
-              <Printer className="w-4 h-4" />
-            </button>
 
             <a
               href={document.pdfUrl || '/sample-past-question.pdf'}
               download={`${document.courseCode}_${(document.chapterTitle || document.title).replace(/[^a-zA-Z0-9]/g, '_')}.${fileType === 'powerpoint' ? 'pptx' : fileType === 'word' ? 'docx' : fileType === 'image' ? 'png' : 'pdf'}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="min-h-[44px] flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#7C3AED] hover:bg-[#6B21A8] active:scale-95 text-white text-xs sm:text-sm font-semibold transition-all shadow-xs shrink-0 whitespace-nowrap"
+              className="h-10 flex items-center gap-2 px-4 py-2 rounded-xl bg-[#7C3AED] hover:bg-[#6B21A8] active:scale-95 text-white text-xs sm:text-sm font-semibold transition-all shadow-xs shrink-0 whitespace-nowrap"
             >
               <Download className="w-4 h-4" />
-              <span>
-                Download {fileType === 'powerpoint' ? 'PowerPoint' : fileType === 'word' ? 'Document' : fileType === 'image' ? 'Image' : 'PDF'}{' '}
-                <span className="hidden sm:inline font-normal opacity-90">({document.fileSize || '8.4 MB'})</span>
-              </span>
+              <span>Download PDF</span>
             </a>
           </div>
         </div>
-
-        {/* 2. Secondary Reader Toolbar (Only for interactive text summary mode) */}
-        {viewMode === 'interactive' && (
-          <div className="w-full bg-[#eff4ff]/80 backdrop-blur-md px-3 sm:px-6 py-2 flex items-center justify-between border-t border-slate-200 text-xs sm:text-sm gap-2 overflow-x-auto">
-            {/* Page Indicator & Navigation */}
-            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-              <button
-                disabled={currentPage <= 1}
-                onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
-                className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl bg-white hover:bg-[#F3E8FF] text-slate-700 hover:text-[#6B21A8] disabled:opacity-30 disabled:pointer-events-none transition-all shadow-2xs border border-slate-200 flex items-center justify-center active:scale-95"
-                title="Previous Page"
-                aria-label="Previous Page"
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </button>
-
-              <div className="h-11 min-h-[44px] flex items-center bg-white rounded-xl px-3 sm:px-4 shadow-2xs border border-slate-200 font-semibold text-slate-800 select-none">
-                <span className="text-[#6B21A8] font-bold text-sm sm:text-xs">{currentPage}</span>
-                <span className="mx-1.5 text-slate-400">/</span>
-                <span className="text-slate-600">{totalPages}</span>
-              </div>
-
-              <button
-                disabled={currentPage >= totalPages}
-                onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
-                className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl bg-white hover:bg-[#F3E8FF] text-slate-700 hover:text-[#6B21A8] disabled:opacity-30 disabled:pointer-events-none transition-all shadow-2xs border border-slate-200 flex items-center justify-center active:scale-95"
-                title="Next Page"
-                aria-label="Next Page"
-              >
-                <ChevronRight className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Zoom Controls */}
-            <div className="flex items-center gap-2 shrink-0">
-              <div className="flex items-center bg-white rounded-xl shadow-2xs border border-slate-200 overflow-hidden">
-                <button
-                  onClick={handleZoomOut}
-                  className="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-[#F3E8FF] text-slate-600 hover:text-[#6B21A8] transition-colors active:scale-95"
-                  title="Zoom Out"
-                  aria-label="Zoom Out"
-                >
-                  <ZoomOut className="w-4 h-4" />
-                </button>
-                <span className="px-2 font-mono font-bold text-xs text-[#0F172A] min-w-[50px] text-center select-none">
-                  {zoomLevel}%
-                </span>
-                <button
-                  onClick={handleZoomIn}
-                  className="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-[#F3E8FF] text-slate-600 hover:text-[#6B21A8] transition-colors active:scale-95"
-                  title="Zoom In"
-                  aria-label="Zoom In"
-                >
-                  <ZoomIn className="w-4 h-4" />
-                </button>
-              </div>
-
-              <button
-                onClick={handleFitWidth}
-                className="hidden sm:flex min-h-[44px] px-3.5 items-center justify-center rounded-xl bg-white hover:bg-[#F3E8FF] hover:text-[#6B21A8] text-slate-700 font-semibold text-xs shadow-2xs border border-slate-200 transition-colors"
-              >
-                Fit Width
-              </button>
-
-              <button
-                onClick={handleFitPage}
-                className="hidden sm:flex min-h-[44px] px-3.5 items-center justify-center rounded-xl bg-white hover:bg-[#F3E8FF] hover:text-[#6B21A8] text-slate-700 font-semibold text-xs shadow-2xs border border-slate-200 transition-colors"
-              >
-                Fit Page
-              </button>
-            </div>
-          </div>
-        )}
       </header>
 
       {/* 3. Interactive Document Workspace or Mozilla PDF.js Canvas Preview */}
