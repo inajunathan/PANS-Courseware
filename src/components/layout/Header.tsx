@@ -9,12 +9,8 @@ import {
   ArrowUp,
   Menu, 
   X, 
-  BookOpen, 
   GraduationCap, 
-  Command, 
-  Home,
-  FileText,
-  Video
+  Command 
 } from 'lucide-react';
 import SearchModal from '@/components/search/SearchModal';
 
@@ -26,10 +22,10 @@ export default function Header() {
   const [scrollProgress, setScrollProgress] = useState(0);
 
   const navLinks = [
-    { name: 'Home', href: '/', icon: Home },
-    { name: 'Courses', href: '/courses', icon: BookOpen },
-    { name: 'Past Questions', href: '/past-questions', icon: FileText },
-    { name: 'Tutorials', href: '/tutorials', icon: Video },
+    { name: 'Home', href: '/' },
+    { name: 'Courses', href: '/courses' },
+    { name: 'Past Questions', href: '/past-questions' },
+    { name: 'Tutorials', href: '/tutorials' },
   ];
 
   const classLevels = [
@@ -256,19 +252,17 @@ export default function Header() {
             const isActive = link.href === '/'
               ? pathname === '/'
               : pathname === link.href || pathname.startsWith(`${link.href}/`) || (link.href === '/courses' && pathname.startsWith('/viewer'));
-            const Icon = link.icon;
             return (
               <Link
                 key={link.name}
                 href={link.href}
                 onClick={() => setMobileMenuOpen(false)}
-                className={`min-h-[44px] flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                className={`min-h-[44px] flex items-center px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all ${
                   isActive
                     ? 'bg-[#F3E8FF] text-[#6B21A8] shadow-2xs font-bold'
                     : 'text-slate-700 hover:bg-slate-100 hover:text-[#0b1c30]'
                 }`}
               >
-                <Icon className={`w-4 h-4 ${isActive ? 'text-[#7C3AED]' : 'text-slate-400'}`} />
                 <span>{link.name}</span>
               </Link>
             );
