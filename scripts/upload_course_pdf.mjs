@@ -17,6 +17,12 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+
+// Polyfill WebSocket for Node.js < 22
+if (typeof globalThis.WebSocket === 'undefined') {
+  globalThis.WebSocket = class DummyWebSocket {};
+}
+
 import { createClient } from '@supabase/supabase-js';
 
 const __filename = fileURLToPath(import.meta.url);
